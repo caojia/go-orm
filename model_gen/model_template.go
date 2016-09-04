@@ -14,13 +14,14 @@ import (
 	"encoding/json"
 	{{if .ImportTime}}"time"{{end}}
 )
-
-func Init() {
-	addTable({{.Name}}{})
-}
 `
 
-var modelStruct string = `type {{.Name}} struct {
+var modelStruct string = `
+func init() {
+	addTable({{.Name}}{})
+}
+
+type {{.Name}} struct {
 	{{range .Fields}}{{.Name}} {{.Type}} {{.Tag}}{{if .Comment}} // {{.Comment}}{{end}}
 	{{end}}
 }
