@@ -1,0 +1,11 @@
+.idea
+.DS_Store
+*.iml
+model_gen/model_gen
+model_gen/model/
+entry/entry
+databases/.yoyo-migrate
+*.swp
+entry/dayhole
+schema.sql
+job/job
