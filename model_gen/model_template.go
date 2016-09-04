@@ -14,6 +14,10 @@ import (
 	"encoding/json"
 	{{if .ImportTime}}"time"{{end}}
 )
+
+func Init() {
+	addTable({{.Name}}{})
+}
 `
 
 var modelStruct string = `type {{.Name}} struct {
