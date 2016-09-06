@@ -729,6 +729,8 @@ func makeString(start, split, end string, ids []interface{}) string {
 	return buff.String()
 }
 
+var zeroTime = time.Unix(0, 0)
+
 func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Value, bool) {
 	t := reflect.TypeOf(s).Elem()
 	v := reflect.ValueOf(s).Elem()
@@ -762,7 +764,14 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 		}
 		cols += cn
 		vals += "?"
-		ret = append(ret, v.Field(k).Addr().Interface())
+		r := v.Field(k).Addr().Interface()
+		if v.Field(k).Type().String() == "time.Time" {
+			if (r.(*time.Time).IsZero()) {
+				r = &zeroTime
+			}
+		}
+
+		ret = append(ret, r)
 		n += 1
 	}
 	return cols, vals, ret, pk, isAi

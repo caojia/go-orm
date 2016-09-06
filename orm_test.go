@@ -54,6 +54,7 @@ type TestOrmE333 struct {
 	VBoolean    bool
 	VBigDecimal float64
 	VFloat      float64
+	StartTime   time.Time
 	CreatedAt   time.Time `ignore:"true"`
 }
 
@@ -126,6 +127,7 @@ func oneTestScope(fn func(orm *ORM, testTableName string)) {
 		v_boolean TINYINT(1) NOT NULL,
 		v_big_decimal DECIMAL(12, 7) NOT NULL,
 		v_float FLOAT NOT NULL,
+		start_time DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00',
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		primary key (test_orm_e_id)
 	)
