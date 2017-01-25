@@ -801,7 +801,6 @@ func TestInsertBatch(t *testing.T) {
 				TestOrmDId:  0,
 				Description: "test orm 1测试",
 				StartDate:   time.Now(),
-				EndDate:     time.Now(),
 			})
 		}
 		start := time.Now()

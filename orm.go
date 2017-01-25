@@ -837,7 +837,13 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 			}
 			vals.WriteString("?")
 			isFirst = false
-			ret = append(ret, v.Field(k).Addr().Interface())
+			r := v.Field(k).Addr().Interface()
+			if v.Field(k).Type().String() == "time.Time" {
+				if (r.(*time.Time).IsZero()) {
+					r = &zeroTime
+				}
+			}
+			ret = append(ret, r)
 		}
 		vals.WriteString(")")
 	}
