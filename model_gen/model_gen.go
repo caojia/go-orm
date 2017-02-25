@@ -18,6 +18,7 @@ func main() {
 	var driver, schemaName string
 	var touchTimestamp bool
 	var pCount int
+	var prefix string
 	flag.StringVar(&targetDb, "db", "", "Target database source string: e.g. root@tcp(127.0.0.1:3306)/test?charset=utf-8")
 	flag.StringVar(&tableNames, "tables", "", "You may specify which tables the models need to be created, e.g. \"user,article,blog\"")
 	flag.StringVar(&packageName, "pkg", "", "Go source code package for generated models")
@@ -26,6 +27,7 @@ func main() {
 	flag.BoolVar(&touchTimestamp, "dont-touch-timestamp", false, "Should touch the datetime fields with default value or on update")
 	flag.StringVar(&tmplName, "template", "", "Passing the template to generate code, or use the default one")
 	flag.IntVar(&pCount, "p", 4, "Parallell running for code generator")
+	flag.StringVar(&prefix, "prefix", "", "Prefix to skip when generating the table models")
 	flag.Parse()
 
 	runtime.GOMAXPROCS(pCount)

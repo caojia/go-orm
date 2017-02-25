@@ -58,6 +58,15 @@ type TestOrmE333 struct {
 	CreatedAt   time.Time `ignore:"true"`
 }
 
+type TestOrmF123 struct {
+	Id int64 `pk:"true" ai:"true"`
+	Name string
+}
+
+func (obj TestOrmF123) TableName() string {
+	return "orm_f"
+}
+
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
 	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
@@ -136,11 +145,23 @@ func oneTestScope(fn func(orm *ORM, testTableName string)) {
 		log.Printf("error %+v\n", err)
 	}
 
+	_, err = orm.Exec(`
+	CREATE TABLE IF NOT EXISTS orm_f (
+		id BIGINT NOT NULL AUTO_INCREMENT,
+		name VARCHAR(1024) NOT NULL,
+		primary key (id)
+	)
+	`)
+	if err != nil {
+		log.Printf("error %+v\n", err)
+	}
+
 	defer orm.Exec("DROP TABLE IF EXISTS test_orm_b999;")
 	defer orm.Exec("DROP TABLE IF EXISTS test_orm_a123;")
 	defer orm.Exec("DROP TABLE IF EXISTS test_orm_c111;")
 	defer orm.Exec("DROP TABLE IF EXISTS test_orm_d222;")
 	defer orm.Exec("DROP TABLE IF EXISTS test_orm_e333;")
+	defer orm.Exec("DROP TABLE IF EXISTS orm_f;")
 	fn(orm, "test_orm_a123")
 }
 
@@ -806,5 +827,41 @@ func TestInsertBatch(t *testing.T) {
 		start := time.Now()
 		orm.InsertBatch(list)
 		fmt.Println("insert 1000000 records cost time ", time.Now().Sub(start))
+	})
+}
+
+func TestTableName(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		obj := TestOrmF123{
+			Name: "tf1",
+		}
+		err := orm.Insert(&obj)
+		if err != nil {
+			t.Fatal("should not return error when inserting obj")
+		}
+
+		if obj.Id <= 0 {
+			t.Fatal("id should be larger than 0 after insertion")
+		}
+
+		var obj1 TestOrmF123
+		err = orm.SelectByPK(&obj1, obj.Id)
+		if err != nil {
+			t.Fatal("should not return error when selecting")
+		}
+		if obj.Name != obj1.Name {
+			t.Fatal("obj name doesn't match")
+		}
+
+		list := make([]interface{}, 0, 10000)
+		for i := 0; i < 20000; i++ {
+			list = append(list, &TestOrmF123{
+				Name: "test",
+			})
+		}
+		err = orm.InsertBatch(list)
+		if err != nil {
+			t.Fatal("got error when batch inserting", err)
+		}
 	})
 }

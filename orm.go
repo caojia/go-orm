@@ -242,7 +242,17 @@ func getOrColumnsByType(t reflect.Type) (reflect.StructField, []*orColumn) {
 	return pkColumn, res
 }
 
+/**
+Return s.TableName() if valid
+ */
 func getTableName(s interface{}) string {
+	tableNameMethod := reflect.ValueOf(s).MethodByName("TableName")
+	if tableNameMethod.IsValid() {
+		tableName := tableNameMethod.Call([]reflect.Value{})
+		if len(tableName) == 1 && tableName[0].Kind() == reflect.String {
+			return tableName[0].String()
+		}
+	}
 	ts := reflect.TypeOf(s)
 	if ts.Kind() == reflect.Ptr {
 		ts = ts.Elem()
@@ -853,9 +863,8 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 
 func insert(tdx Tdx, s interface{}) error {
 	cols, vals, ifs, pk, isAi := columnsByStruct(s)
-	t := reflect.TypeOf(s).Elem()
 
-	q := fmt.Sprintf("insert into %s (%s) values(%s)", fieldName2ColName(t.Name()), cols, vals)
+	q := fmt.Sprintf("insert into %s (%s) values(%s)", getTableName(s), cols, vals)
 	ret, err := tdx.Exec(q, ifs...)
 	if err != nil {
 		return err
@@ -878,9 +887,8 @@ func insertBatch(tdx Tdx, s []interface{}) error {
 	}
 	//todo 需要check s中的数据都是同一种类型
 	cols, vals, ifs, pks, ais := columnsBySlice(s)
-	t := reflect.TypeOf(s[0]).Elem()
 
-	q := fmt.Sprintf("insert into %s %s values %s", fieldName2ColName(t.Name()), cols, vals)
+	q := fmt.Sprintf("insert into %s %s values %s", getTableName(s[0]), cols, vals)
 	ret, err := tdx.Exec(q, ifs...)
 	if err != nil {
 		return err
@@ -939,7 +947,7 @@ func (o *ORM) Close() error {
 }
 
 func (o *ORM) AddTable(s interface{}) {
-	name := fieldName2ColName(reflect.TypeOf(s).Name())
+	name := getTableName(s)
 	o.tables[name] = s
 }
 
