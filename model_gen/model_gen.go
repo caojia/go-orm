@@ -61,6 +61,7 @@ func main() {
 		packageName:    packageName,
 		touchTimestamp: touchTimestamp,
 		template:       tmplName,
+		skipPrefix:     prefix,
 	}
 	codeConfig.MustCompileTemplate()
 	generateModels(schemaName, dbSchema, *codeConfig)

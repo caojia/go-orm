@@ -21,6 +21,7 @@ type CodeConfig struct {
 	packageName    string
 	touchTimestamp bool
 	template       string
+	skipPrefix     string
 }
 
 func (cc CodeConfig) MustCompileTemplate() *template.Template {
@@ -40,7 +41,11 @@ func generateModels(dbName string, dbSchema drivers.DbSchema, config CodeConfig)
 	jobs := make(chan CodeResult)
 	for tbl, cols := range dbSchema {
 		go func(tableName string, schema drivers.TableSchema) {
-			err := generateModel(dbName, tableName, schema, config, customTmpl)
+			shortTableName := tableName
+			if strings.HasPrefix(tableName, config.skipPrefix) {
+				shortTableName = tableName[len(config.skipPrefix):]
+			}
+			err := generateModel(dbName, shortTableName, tableName, schema, config, customTmpl)
 			jobs <- CodeResult{tableName, err}
 		}(tbl, cols)
 	}
@@ -56,12 +61,12 @@ func generateModels(dbName string, dbSchema drivers.DbSchema, config CodeConfig)
 	close(jobs)
 }
 
-func generateModel(dbName, tName string, schema drivers.TableSchema, config CodeConfig, tmpl *template.Template) error {
+func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema, config CodeConfig, tmpl *template.Template) error {
 	// omit table with "_" as prefix, such as _yoyo_migrations
 	if strings.HasPrefix(tName, "_") {
 		return nil
 	}
-	file, err := os.Create(path.Join(config.packageName, tName+".go"))
+	file, err := os.Create(path.Join(config.packageName, shortTName+".go"))
 	if err != nil {
 		return err
 	}
@@ -73,8 +78,8 @@ func generateModel(dbName, tName string, schema drivers.TableSchema, config Code
 	}()
 
 	model := ModelMeta{
-		Name:      toCapitalCase(tName, true),
-		LowerName: toCapitalCase(tName, false),
+		Name:      toCapitalCase(shortTName, true),
+		LowerName: toCapitalCase(shortTName, false),
 		DbName:    dbName,
 		TableName: tName,
 		Fields:    make([]ModelField, len(schema)),
@@ -137,7 +142,7 @@ func generateModel(dbName, tName string, schema drivers.TableSchema, config Code
 		return fmt.Errorf("[%s] Fail to gen model object api, %s", tName, err)
 	}
 
-	testFileName := path.Join(config.packageName, tName+"_test.go")
+	testFileName := path.Join(config.packageName, shortTName+"_test.go")
 	if err := generateModelTest(model, tmpl, needTime, testFileName); err != nil {
 		return err
 	}
