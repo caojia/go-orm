@@ -59,7 +59,7 @@ type TestOrmE333 struct {
 }
 
 type TestOrmF123 struct {
-	Id int64 `pk:"true" ai:"true"`
+	Id   int64 `pk:"true" ai:"true"`
 	Name string
 }
 
@@ -163,6 +163,32 @@ func oneTestScope(fn func(orm *ORM, testTableName string)) {
 	defer orm.Exec("DROP TABLE IF EXISTS test_orm_e333;")
 	defer orm.Exec("DROP TABLE IF EXISTS orm_f;")
 	fn(orm, "test_orm_a123")
+}
+
+func TestORMUpdate(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		testObj := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		orm.Insert(testObj)
+		testObj.Description = "update"
+		orm.UpdateByPK(testObj)
+		var loadedObj TestOrmA123
+		if err := orm.SelectByPK(&loadedObj, testObj.TestId); err != nil {
+			t.Error(err)
+			if len(loadedObj.Description) == 0 {
+				t.Error(loadedObj)
+			}
+			return
+		} else if loadedObj.Description != "update" {
+			t.Error(loadedObj)
+			return
+		}
+	})
 }
 
 func TestQueryRawSetAndQueryRaw(t *testing.T) {
@@ -782,10 +808,9 @@ func TestORM_SelectRawSet(t *testing.T) {
 			t.Errorf("results should be 1")
 		}
 
-		if (results[0]["v_int64"] != int64(-64)) {
+		if results[0]["v_int64"] != int64(-64) {
 			t.Errorf("got error, v_int64 value is not correct, v_int64=%d", results[0]["v_int64"])
 		}
-
 
 	})
 }

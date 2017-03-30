@@ -244,7 +244,7 @@ func getOrColumnsByType(t reflect.Type) (reflect.StructField, []*orColumn) {
 
 /**
 Return s.TableName() if valid
- */
+*/
 func getTableName(s interface{}) string {
 	tableNameMethod := reflect.ValueOf(s).MethodByName("TableName")
 	if tableNameMethod.IsValid() {
@@ -741,7 +741,7 @@ func makeString(start, split, end string, ids []interface{}) string {
 
 var zeroTime = time.Unix(0, 0)
 
-func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Value, bool) {
+func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Value, bool, string) {
 	t := reflect.TypeOf(s).Elem()
 	v := reflect.ValueOf(s).Elem()
 	cols := ""
@@ -749,6 +749,7 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 	ret := make([]interface{}, 0, t.NumField())
 	n := 0
 	var pk reflect.Value
+	var pkName string
 	isAi := false
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
@@ -757,6 +758,7 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 		//auto increment field
 		if ft.Tag.Get("pk") == "true" {
 			pk = v.Field(k)
+			pkName = fieldName2ColName(ft.Name)
 			if ft.Tag.Get("ai") == "true" {
 				isAi = true
 				continue
@@ -776,7 +778,7 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 		vals += "?"
 		r := v.Field(k).Addr().Interface()
 		if v.Field(k).Type().String() == "time.Time" {
-			if (r.(*time.Time).IsZero()) {
+			if r.(*time.Time).IsZero() {
 				r = &zeroTime
 			}
 		}
@@ -784,7 +786,7 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 		ret = append(ret, r)
 		n += 1
 	}
-	return cols, vals, ret, pk, isAi
+	return cols, vals, ret, pk, isAi, pkName
 }
 
 func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.Value, []bool) {
@@ -849,7 +851,7 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 			isFirst = false
 			r := v.Field(k).Addr().Interface()
 			if v.Field(k).Type().String() == "time.Time" {
-				if (r.(*time.Time).IsZero()) {
+				if r.(*time.Time).IsZero() {
 					r = &zeroTime
 				}
 			}
@@ -862,7 +864,7 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 }
 
 func insert(tdx Tdx, s interface{}) error {
-	cols, vals, ifs, pk, isAi := columnsByStruct(s)
+	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
 
 	q := fmt.Sprintf("insert into %s (%s) values(%s)", getTableName(s), cols, vals)
 	ret, err := tdx.Exec(q, ifs...)
@@ -877,6 +879,22 @@ func insert(tdx Tdx, s interface{}) error {
 		if pk.Kind() == reflect.Int64 {
 			pk.SetInt(lid)
 		}
+	}
+	return nil
+}
+
+func updateByPK(tdx Tdx, s interface{}) error {
+	colStr, _, ifs, pk, _, pkName := columnsByStruct(s)
+	cols := strings.Split(colStr, ",")
+	cs := make([]string, 0)
+	for _, col := range cols {
+		cs = append(cs, col+" = ?")
+	}
+	sv := strings.Join(cs, ",")
+	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	_, err := tdx.Exec(q, ifs...)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -912,6 +930,7 @@ type ORMer interface {
 	Select(interface{}, string, ...interface{}) error
 	SelectStr(string, ...interface{}) (string, error)
 	SelectInt(string, ...interface{}) (int64, error)
+	UpdateByPK(interface{}) error
 	Insert(interface{}) error
 	InsertBatch([]interface{}) error
 	Exec(string, ...interface{}) (sql.Result, error)
@@ -1017,6 +1036,10 @@ func (o *ORM) SelectInt(query string, args ...interface{}) (int64, error) {
 	return selectInt(o.db, query, args...)
 }
 
+func (o *ORM) UpdateByPK(s interface{}) error {
+	return updateByPK(o.db, s)
+}
+
 func (o *ORM) Insert(s interface{}) error {
 	return insert(o.db, s)
 }
@@ -1117,6 +1140,10 @@ func (o *ORMTran) Insert(s interface{}) error {
 
 func (o *ORMTran) InsertBatch(s []interface{}) error {
 	return insertBatch(o.tx, s)
+}
+
+func (o *ORMTran) UpdateByPK(s interface{}) error {
+	return updateByPK(o.tx, s)
 }
 
 func (o *ORMTran) Exec(query string, args ...interface{}) (sql.Result, error) {
