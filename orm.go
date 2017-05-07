@@ -876,9 +876,7 @@ func insert(tdx Tdx, s interface{}) error {
 		if err != nil {
 			return err
 		}
-		if pk.Kind() == reflect.Int64 {
-			pk.SetInt(lid)
-		}
+		pk.SetInt(lid)
 	}
 	return nil
 }
