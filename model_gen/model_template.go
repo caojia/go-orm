@@ -49,12 +49,12 @@ var objApi string = `
 // Start of the {{.Name}} APIs.
 
 func (m *Model) Insert{{.Name}}({{.LowerName}} *{{.Name}}) error {
-	return m.m.Insert({{.LowerName}})
+	return m.Insert({{.LowerName}})
 }
 
 func (m *Model) Get{{.Name}}ByPK(id {{.PrimaryField.Type}}) (*{{.Name}}, error) {
 	var {{.LowerName}} {{.Name}}
-	err := m.m.SelectByPK(&{{.LowerName}}, id)
+	err := m.SelectByPK(&{{.LowerName}}, id)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err == nil {
