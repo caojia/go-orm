@@ -815,6 +815,45 @@ func TestORM_SelectRawSet(t *testing.T) {
 	})
 }
 
+func TestORM_SelectRawSetWithParam(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		testObj := &TestOrmE333{
+			Name:        "name",
+			VInt64:      -64,
+			VInt:        3,
+			VUint64:     64,
+			VUint:       3,
+			VBoolean:    true,
+			VBigDecimal: 3.131495276,
+			VFloat:      3.131495276,
+		}
+
+		err := orm.Insert(testObj)
+		if err != nil {
+			t.Errorf("got error while insert err=%+v", err)
+		}
+
+		results, err := orm.SelectRawSetWithParam("select * from test_orm_e333 where name = #{name}", map[string]interface{}{
+			"name": "name",
+		})
+
+		if err != nil {
+			t.Errorf("got error while select err=%+v", err)
+		}
+
+		t.Logf("results = %+v\n", results)
+
+		if len(results) != 1 {
+			t.Errorf("results should be 1")
+		}
+
+		if results[0]["v_int64"] != int64(-64) {
+			t.Errorf("got error, v_int64 value is not correct, v_int64=%d", results[0]["v_int64"])
+		}
+
+	})
+}
+
 /*
 不获取id
 insert 1000000 records cost time  3.589199155s
@@ -888,5 +927,12 @@ func TestTableName(t *testing.T) {
 		if err != nil {
 			t.Fatal("got error when batch inserting", err)
 		}
+
+		result := make([]int64, 0)
+		err = orm.Select(&result, "SELECT id FROM orm_f")
+		if err != nil {
+			t.Fatal("select int array error", err)
+		}
+		t.Log(result)
 	})
 }

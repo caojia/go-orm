@@ -551,6 +551,40 @@ func selectRaw(tdx Tdx, query string, args ...interface{}) ([]string, [][]interf
 	return colNames, data, nil
 }
 
+func selectRawWithParam(tdx Tdx, paramQuery string, paramMap interface{}) ([]string, [][]interface{}, error) {
+	params := sqlParamReg.FindAllString(paramQuery, -1)
+	if params != nil && len(params) > 0 {
+		var args []interface{} = make([]interface{}, 0, len(params))
+		for _, param := range params {
+			param = param[2 : len(param)-1]
+			value, err := getFieldValue(paramMap, param)
+			if err != nil {
+				return nil, nil, err
+			}
+			args = append(args, value)
+		}
+		paramQuery = sqlParamReg.ReplaceAllLiteralString(paramQuery, "?")
+		return selectRaw(tdx, paramQuery, args...)
+	} else {
+		return selectRaw(tdx, paramQuery)
+	}
+}
+
+func selectRawSetWithParam(tdx Tdx, paramQuery string, paramMap interface{}) ([]map[string]interface{}, error) {
+	headers, rows, err := selectRawWithParam(tdx, paramQuery, paramMap)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]map[string]interface{}, len(rows))
+	for i, row := range rows {
+		results[i] = map[string]interface{}{}
+		for j, h := range headers {
+			results[i][h] = row[j]
+		}
+	}
+	return results, nil
+}
+
 func selectMany(tdx Tdx, s interface{}, query string, args ...interface{}) error {
 	return selectManyInternal(tdx, s, true, query, args...)
 }
@@ -1024,6 +1058,14 @@ func (o *ORM) SelectRawSet(query string, columnMaps map[string]string, args ...i
 
 func (o *ORM) SelectRaw(query string, args ...interface{}) ([]string, [][]interface{}, error) {
 	return selectRaw(o.db, query, args...)
+}
+
+func (o *ORM) SelectRawWithParam(paramQuery string, paramMap interface{}) ([]string, [][]interface{}, error) {
+	return selectRawWithParam(o.db, paramQuery, paramMap)
+}
+
+func (o *ORM) SelectRawSetWithParam(paramQuery string, paramMap interface{}) ([]map[string]interface{}, error) {
+	return selectRawSetWithParam(o.db, paramQuery, paramMap)
 }
 
 func (o *ORM) SelectStr(query string, args ...interface{}) (string, error) {
