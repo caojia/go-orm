@@ -398,7 +398,7 @@ func toCapitalCase(name string, firstLetterUpper bool) string {
 			endPos++
 		} else if ch >= '0' && ch <= '9' {
 			if lastUnderScore {
-				data[endPos] = "_"
+				data[endPos] = "_"[0]
 				endPos++
 			}
 			data[endPos] = ch
