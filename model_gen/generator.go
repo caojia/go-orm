@@ -372,11 +372,12 @@ func (m ModelMeta) GenTestCode(w *bufio.Writer, tmpl *template.Template) error {
 }
 
 func toCapitalCase(name string, firstLetterUpper bool) string {
-	// cp___hello_12jiu -> CpHello12Jiu
+	// cp___hello_12jiu -> CpHello_12Jiu
 	data := []byte(name)
 	segStart := true
 	endPos := 0
 	isFirst := true
+	lastUnderScore := false
 	for i := 0; i < len(data); i++ {
 		ch := data[i]
 		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
@@ -393,12 +394,19 @@ func toCapitalCase(name string, firstLetterUpper bool) string {
 				}
 			}
 			data[endPos] = ch
+			lastUnderScore = false
 			endPos++
 		} else if ch >= '0' && ch <= '9' {
+			if lastUnderScore {
+				data[endPos] = "_"
+				endPos++
+			}
 			data[endPos] = ch
 			endPos++
 			segStart = true
+			lastUnderScore = false
 		} else {
+			lastUnderScore = true
 			segStart = true
 		}
 		isFirst = false
