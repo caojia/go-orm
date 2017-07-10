@@ -773,7 +773,7 @@ func makeString(start, split, end string, ids []interface{}) string {
 	return buff.String()
 }
 
-var zeroTime = time.Unix(0, 0)
+var zeroTime = time.Unix(1, 0)
 
 func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Value, bool, string) {
 	t := reflect.TypeOf(s).Elem()
