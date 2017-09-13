@@ -356,8 +356,8 @@ func selectOneInternal(tdx Tdx, s interface{}, queryStr string, args ...interfac
 }
 
 func processOrHasOneRelation(tdx Tdx, orCol *orColumn, v reflect.Value, pk reflect.StructField, pkValue interface{}) error {
-	orRows, err := tdx.Query("SELECT * FROM "+orCol.table+" WHERE "+fieldName2ColName(pk.Name)+" = ? LIMIT 1",
-		pkValue)
+	queryStr := fmt.Sprintf("SELECT * FROM `%s` WHERE `%s` = ? LIMIT 1", orCol.table, fieldName2ColName(pk.Name))
+	orRows, err := query(tdx, queryStr, pkValue)
 	if err != nil {
 		return err
 	}
@@ -381,8 +381,8 @@ func processOrHasOneRelation(tdx Tdx, orCol *orColumn, v reflect.Value, pk refle
 }
 
 func processOrBelongsToRelation(tdx Tdx, orCol *orColumn, v reflect.Value, fk string, fkValue interface{}) error {
-	orRows, err := tdx.Query("SELECT * FROM "+orCol.table+" WHERE "+fk+" = ? LIMIT 1",
-		fkValue)
+	queryStr := fmt.Sprintf("SELECT * FROM %s WHERE %s = ? LIMIT 1", orCol.table, fk)
+	orRows, err := query(tdx, queryStr, fkValue)
 	if err != nil {
 		return err
 	}
