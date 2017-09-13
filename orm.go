@@ -169,9 +169,6 @@ func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result
 }
 
 func execWithRowAffectCheck(tdx Tdx, expectRows int64, query string, args ...interface{}) error {
-	if ShowSQL {
-		Success("[go-orm] exec sql : %s %v", query, args)
-	}
 	ret, err := exec(tdx, query, args...)
 	if err != nil {
 		return err
