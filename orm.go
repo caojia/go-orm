@@ -23,6 +23,15 @@ import (
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
 
+var ShowSQL = false
+
+func OpenShowSQL() {
+	ShowSQL = true
+}
+func CloseShowSQL() {
+	ShowSQL = false
+}
+
 func colName2FieldName(buf string) string {
 	tks := strings.Split(buf, "_")
 	ret := ""
@@ -127,7 +136,17 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 }
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
+	if ShowSQL {
+		log.Println("[go-orm] exec sql", query, args)
+	}
 	return tdx.Exec(query, args...)
+}
+
+func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
+	if ShowSQL {
+		log.Println("[go-orm] query sql", queryStr, args)
+	}
+	return tdx.Query(queryStr, args...)
 }
 
 func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
@@ -143,14 +162,17 @@ func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result
 			args = append(args, value)
 		}
 		paramQuery = sqlParamReg.ReplaceAllLiteralString(paramQuery, "?")
-		return tdx.Exec(paramQuery, args...)
+		return exec(tdx, paramQuery, args...)
 	} else {
-		return tdx.Exec(paramQuery)
+		return exec(tdx, paramQuery)
 	}
 }
 
 func execWithRowAffectCheck(tdx Tdx, expectRows int64, query string, args ...interface{}) error {
-	ret, err := tdx.Exec(query, args...)
+	if ShowSQL {
+		Success("[go-orm] exec sql : %s %v", query, args)
+	}
+	ret, err := exec(tdx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -314,8 +336,8 @@ func selectOne(tdx Tdx, s interface{}, query string, args ...interface{}) error 
 	return nil
 }
 
-func selectOneInternal(tdx Tdx, s interface{}, query string, args ...interface{}) error {
-	rows, err := tdx.Query(query, args...)
+func selectOneInternal(tdx Tdx, s interface{}, queryStr string, args ...interface{}) error {
+	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
 		return err
 	}
@@ -386,8 +408,8 @@ func processOrBelongsToRelation(tdx Tdx, orCol *orColumn, v reflect.Value, fk st
 	return nil
 }
 
-func selectStr(tdx Tdx, query string, args ...interface{}) (string, error) {
-	rows, err := tdx.Query(query, args...)
+func selectStr(tdx Tdx, queryStr string, args ...interface{}) (string, error) {
+	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
 		return "", err
 	}
@@ -401,8 +423,8 @@ func selectStr(tdx Tdx, query string, args ...interface{}) (string, error) {
 	return ret, err
 }
 
-func selectInt(tdx Tdx, query string, args ...interface{}) (int64, error) {
-	rows, err := tdx.Query(query, args...)
+func selectInt(tdx Tdx, queryStr string, args ...interface{}) (int64, error) {
+	rows, err := query(tdx, queryStr, args...)
 	var ret int64
 	if err != nil {
 		return ret, err
@@ -456,8 +478,8 @@ func MapScan(r ColScanner, dest map[string]interface{}) error {
 	return r.Err()
 }*/
 
-func selectRawSet(tdx Tdx, query string, columnMaps map[string]string, args ...interface{}) ([]map[string]interface{}, error) {
-	rows, err := tdx.Query(query, args...)
+func selectRawSet(tdx Tdx, queryStr string, columnMaps map[string]string, args ...interface{}) ([]map[string]interface{}, error) {
+	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -499,8 +521,9 @@ func selectRawSet(tdx Tdx, query string, columnMaps map[string]string, args ...i
 	return dataSet, nil
 }
 
-func selectRaw(tdx Tdx, query string, args ...interface{}) ([]string, [][]interface{}, error) {
-	rows, err := tdx.Query(query, args...)
+func selectRaw(tdx Tdx, queryStr string, args ...interface{}) ([]string, [][]interface{}, error) {
+
+	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -589,7 +612,7 @@ func selectMany(tdx Tdx, s interface{}, query string, args ...interface{}) error
 	return selectManyInternal(tdx, s, true, query, args...)
 }
 
-func selectManyInternal(tdx Tdx, s interface{}, processOr bool, query string, args ...interface{}) error {
+func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string, args ...interface{}) error {
 	t, err := toSliceType(s)
 	if err != nil {
 		return err
@@ -616,7 +639,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, query string, ar
 
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
 
-	rows, err := tdx.Query(query, args...)
+	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
 		return err
 	}
@@ -636,7 +659,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, query string, ar
 				fname := colName2FieldName(c)
 				fv := v.Elem().FieldByName(fname)
 				if !fv.CanAddr() {
-					fmt.Printf("missing field: %s , query: %s", fname, query)
+					fmt.Printf("missing field: %s , query: %s", fname, queryStr)
 					var b interface{}
 					targets[k] = &b
 					continue
@@ -695,7 +718,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, query string, ar
 				}
 				sqlQuery = makeString("SELECT * FROM "+orCol.table+" WHERE "+fk+" in (",
 					",", ")", fkValues)
-				orRows, err := tdx.Query(sqlQuery)
+				orRows, err := query(tdx, sqlQuery)
 
 				if err != nil {
 					return err
@@ -724,7 +747,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, query string, ar
 			} else {
 				sqlQuery = makeString("SELECT * FROM "+orCol.table+" WHERE "+fieldName2ColName(pkCol.Name)+" in (",
 					",", ")", keys)
-				orRows, err := tdx.Query(sqlQuery)
+				orRows, err := query(tdx, sqlQuery)
 
 				if err != nil {
 					return err
@@ -901,7 +924,7 @@ func insert(tdx Tdx, s interface{}) error {
 	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
 
 	q := fmt.Sprintf("insert into %s (%s) values(%s)", getTableName(s), cols, vals)
-	ret, err := tdx.Exec(q, ifs...)
+	ret, err := exec(tdx, q, ifs...)
 	if err != nil {
 		return err
 	}
@@ -924,7 +947,7 @@ func updateByPK(tdx Tdx, s interface{}) error {
 	}
 	sv := strings.Join(cs, ",")
 	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
-	_, err := tdx.Exec(q, ifs...)
+	_, err := exec(tdx, q, ifs...)
 	if err != nil {
 		return err
 	}
@@ -939,7 +962,7 @@ func insertBatch(tdx Tdx, s []interface{}) error {
 	cols, vals, ifs, pks, ais := columnsBySlice(s)
 
 	q := fmt.Sprintf("insert into %s %s values %s", getTableName(s[0]), cols, vals)
-	ret, err := tdx.Exec(q, ifs...)
+	ret, err := exec(tdx, q, ifs...)
 	if err != nil {
 		return err
 	}
@@ -966,12 +989,14 @@ type ORMer interface {
 	Insert(interface{}) error
 	InsertBatch([]interface{}) error
 	Exec(string, ...interface{}) (sql.Result, error)
+	Query(string, ...interface{}) (*sql.Rows, error)
 	ExecWithParam(string, interface{}) (sql.Result, error)
 	ExecWithRowAffectCheck(int64, string, ...interface{}) error
 }
 
 type ORM struct {
-	db     *sql.DB
+	db *sql.DB
+
 	tables map[string]interface{}
 }
 
@@ -1095,6 +1120,9 @@ func (o *ORM) ExecWithRowAffectCheck(n int64, query string, args ...interface{})
 func (o *ORM) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return exec(o.db, query, args...)
 }
+func (o *ORM) Query(queryStr string, args ...interface{}) (*sql.Rows, error) {
+	return query(o.db, queryStr, args...)
+}
 
 func (o *ORM) ExecWithParam(paramQuery string, paramMap interface{}) (sql.Result, error) {
 	return execWithParam(o.db, paramQuery, paramMap)
@@ -1188,6 +1216,10 @@ func (o *ORMTran) UpdateByPK(s interface{}) error {
 
 func (o *ORMTran) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return exec(o.tx, query, args...)
+}
+
+func (o *ORMTran) Query(queryStr string, args ...interface{}) (*sql.Rows, error) {
+	return query(o.tx, queryStr, args...)
 }
 
 func (o *ORMTran) Commit() error {
