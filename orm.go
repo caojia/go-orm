@@ -24,16 +24,16 @@ var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
 
 const (
-	LogLevelShowNothong = iota
+	LogLevelShowNothing = iota
 	LogLevelShowSql
 	LogLeveLShowExplain
 )
 
-var verbose = LogLevelShowNothong
+var verbose = LogLevelShowNothing
 
 func SetVerbose(logLevel int) {
 	switch logLevel {
-	case LogLevelShowNothong:
+	case LogLevelShowNothing:
 		verbose = 0
 	case LogLevelShowSql:
 		verbose = 1
@@ -148,14 +148,14 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 }
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	if verbose > LogLevelShowNothong {
+	if verbose > LogLevelShowNothing {
 		log.Println("[go-orm] exec sql", query, args)
 	}
 	return tdx.Exec(query, args...)
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	if verbose > LogLevelShowNothong { //level 1
+	if verbose > LogLevelShowNothing { //level 1
 		str := strings.Replace(queryStr, "\n", "", -1)
 		str = strings.Replace(str, "		", " ", -1)
 		logStr := fmt.Sprintf("[go-orm] query sql :%s%v", str, args)
