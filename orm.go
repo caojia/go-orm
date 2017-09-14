@@ -23,13 +23,25 @@ import (
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
 
-var ShowSQL = false
+const (
+	LogLevelShowNothong = iota
+	LogLevelShowSql
+	LogLeveLShowExplain
+)
 
-func OpenShowSQL() {
-	ShowSQL = true
-}
-func CloseShowSQL() {
-	ShowSQL = false
+var verbose = LogLevelShowNothong
+
+func SetVerbose(logLevel int) {
+	switch logLevel {
+	case LogLevelShowNothong:
+		verbose = 0
+	case LogLevelShowSql:
+		verbose = 1
+	case LogLeveLShowExplain:
+		verbose = 2
+	default:
+		verbose = 0
+	}
 }
 
 func colName2FieldName(buf string) string {
@@ -136,15 +148,63 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 }
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	if ShowSQL {
+	if verbose > LogLevelShowNothong {
 		log.Println("[go-orm] exec sql", query, args)
 	}
 	return tdx.Exec(query, args...)
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	if ShowSQL {
-		log.Println("[go-orm] query sql", queryStr, args)
+	if verbose > LogLevelShowNothong { //level 1
+		str := strings.Replace(queryStr, "\n", "", -1)
+		str = strings.Replace(str, "		", " ", -1)
+		logStr := fmt.Sprintf("[go-orm] query sql :%s%v", str, args)
+		if verbose > LogLevelShowSql { //level 2
+			explainStr := fmt.Sprintf("explain %s", queryStr)
+			rows, err := tdx.Query(explainStr, args...)
+			if err != nil {
+				log.Println("explain query err : ", err)
+			}
+			itemMap := make(map[string]interface{})
+			defer rows.Close()
+			for rows.Next() {
+				cols, err := rows.Columns()
+				if err != nil {
+					log.Println("explain err : ", err)
+				}
+				itemList := make([]interface{}, len(cols))
+				for i := range itemList {
+					itemList[i] = new(interface{})
+				}
+				err = rows.Scan(itemList...)
+				if err != nil {
+					log.Println("explain rows scan err : ", err)
+				}
+				for k, c := range cols {
+					switch t := (*itemList[k].(*interface{})).(type) {
+					case []uint8:
+						itemMap[c] = string(t[:])
+					case time.Time:
+						itemMap[c] = t.Format("2006-01-02 15:04:05")
+					case int64:
+						itemMap[c] = t
+					case int:
+						itemMap[c] = t
+					case float32:
+						itemMap[c] = t
+					case float64:
+						itemMap[c] = t
+					case string:
+						itemMap[c] = t
+					case nil:
+						itemMap[c] = nil
+					default:
+					}
+				}
+			}
+			logStr = fmt.Sprintf("%s\n[go-orm] sql explain : [table:%s ,type:%s ,key:%s ,ref:%s ,rows:%d]", logStr, itemMap["table"], itemMap["type"], itemMap["key"], itemMap["ref"], itemMap["rows"])
+		}
+		log.Println(logStr)
 	}
 	return tdx.Query(queryStr, args...)
 }
