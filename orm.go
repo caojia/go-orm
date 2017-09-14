@@ -32,16 +32,7 @@ const (
 var verbose = LogLevelShowNothing
 
 func SetVerbose(logLevel int) {
-	switch logLevel {
-	case LogLevelShowNothing:
-		verbose = 0
-	case LogLevelShowSql:
-		verbose = 1
-	case LogLeveLShowExplain:
-		verbose = 2
-	default:
-		verbose = 0
-	}
+	verbose = logLevel
 }
 
 func colName2FieldName(buf string) string {
@@ -148,25 +139,26 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 }
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	if verbose > LogLevelShowNothing {
+	if verbose >= LogLevelShowNothing {
 		log.Println("[go-orm] exec sql", query, args)
 	}
 	return tdx.Exec(query, args...)
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	if verbose > LogLevelShowNothing { //level 1
+	if verbose >= LogLevelShowSql { //level 1
 		str := strings.Replace(queryStr, "\n", "", -1)
 		str = strings.Replace(str, "		", " ", -1)
 		logStr := fmt.Sprintf("[go-orm] query sql :%s%v", str, args)
-		if verbose > LogLevelShowSql { //level 2
+		if verbose >= LogLeveLShowExplain { //level 2
 			explainStr := fmt.Sprintf("explain %s", queryStr)
 			rows, err := tdx.Query(explainStr, args...)
+			defer rows.Close()
 			if err != nil {
 				log.Println("explain query err : ", err)
+			} else {
 			}
 			itemMap := make(map[string]interface{})
-			defer rows.Close()
 			for rows.Next() {
 				cols, err := rows.Columns()
 				if err != nil {
