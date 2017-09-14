@@ -139,7 +139,7 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 }
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	if verbose >= LogLevelShowNothing {
+	if verbose >= LogLevelShowSql {
 		log.Println("[go-orm] exec sql", query, args)
 	}
 	return tdx.Exec(query, args...)
