@@ -139,23 +139,22 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 }
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	if verbose >= LogLevelShowSql {
-		log.Println("[go-orm] exec sql", query, args)
+	if verbose >= LogLevelShowNothing {
+		log.Println("[go-orm] exec sql:", query, args)
 	}
 	return tdx.Exec(query, args...)
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 	if verbose >= LogLevelShowSql { //level 1
-		str := strings.Replace(queryStr, "\n", "", -1)
-		str = strings.Replace(str, "		", " ", -1)
-		logStr := fmt.Sprintf("[go-orm] query sql :%s%v", str, args)
+		logStr := fmt.Sprintf("[go-orm] query sql: %s%v", regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " "), args)
 		if verbose >= LogLeveLShowExplain { //level 2
 			explainStr := fmt.Sprintf("explain %s", queryStr)
 			rows, err := tdx.Query(explainStr, args...)
 			defer rows.Close()
 			if err != nil {
 				log.Println("explain query err : ", err)
+			} else {
 			}
 			itemMap := make(map[string]interface{})
 			for rows.Next() {
