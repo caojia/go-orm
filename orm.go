@@ -156,7 +156,6 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 			defer rows.Close()
 			if err != nil {
 				log.Println("explain query err : ", err)
-			} else {
 			}
 			itemMap := make(map[string]interface{})
 			for rows.Next() {
