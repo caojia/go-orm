@@ -202,7 +202,7 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 					}
 				}
 			}
-			logStr = fmt.Sprintf("%s\n[go-orm] sql explain : [table:%s ,type:%s ,key:%s ,ref:%s ,rows:%d]", logStr, itemMap["table"], itemMap["type"], itemMap["key"], itemMap["ref"], itemMap["rows"])
+			logStr = fmt.Sprintf("%s\n[go-orm] sql explain : [table:%v ,type:%v ,key:%v ,ref:%v ,rows:%v]", logStr, itemMap["table"], itemMap["type"], itemMap["key"], itemMap["ref"], itemMap["rows"])
 		}
 		log.Println(logStr)
 	}
