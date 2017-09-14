@@ -146,8 +146,12 @@ func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
+	start := time.Now()
+	sqlRow, sqlErr := tdx.Query(queryStr, args...)
+	duration := time.Since(start)
+	logStr := "[go-orm]"
 	if verbose >= LogLevelShowSql { //level 1
-		logStr := fmt.Sprintf("[go-orm] query sql: %s%v", regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " "), args)
+		logStr = fmt.Sprintf("%s query_sql: %s%v ,query_duration: %v", logStr, regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " "), args, duration)
 		if verbose >= LogLeveLShowExplain { //level 2
 			explainStr := fmt.Sprintf("explain %s", queryStr)
 			rows, err := tdx.Query(explainStr, args...)
@@ -192,11 +196,11 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 					}
 				}
 			}
-			logStr = fmt.Sprintf("%s\n[go-orm] sql explain : [table:%v ,type:%v ,key:%v ,ref:%v ,rows:%v ,extra:%v]", logStr, itemMap["table"], itemMap["type"], itemMap["key"], itemMap["ref"], itemMap["rows"], itemMap["Extra"])
+			logStr = fmt.Sprintf("%s ,sql_explain : [table:%v ,type:%v ,key:%v ,ref:%v ,rows:%v ,extra:%v]", logStr, itemMap["table"], itemMap["type"], itemMap["key"], itemMap["ref"], itemMap["rows"], itemMap["Extra"])
 		}
 		log.Println(logStr)
 	}
-	return tdx.Query(queryStr, args...)
+	return sqlRow, sqlErr
 }
 
 func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
