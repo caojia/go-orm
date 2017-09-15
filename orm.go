@@ -23,7 +23,7 @@ import (
 
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
-var sqlLogger SqlLogger=&NoopSqlLogger{}
+var sqlLogger SqlLogger = &NoopSqlLogger{}
 
 func SetLog(sqlLog SqlLogger) {
 	sqlLogger = sqlLog
