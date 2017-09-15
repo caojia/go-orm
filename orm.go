@@ -23,7 +23,7 @@ import (
 
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
-var sqlLogger SqlLogger
+var sqlLogger SqlLogger=&NoopSqlLogger{}
 
 func SetLog(sqlLog SqlLogger) {
 	sqlLogger = sqlLog
@@ -133,9 +133,9 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 }
 
 type SqlLog struct {
-	Sql      string   `json:"sql"`
-	Duration string   `json:"duration"`
-	Explain  *Explain `json:"explain,omitempty"`
+	Sql      string        `json:"sql"`
+	Duration time.Duration `json:"duration"`
+	Explain  *Explain      `json:"explain,omitempty"`
 }
 type Explain struct {
 	Table  string `json:"table"`
@@ -161,31 +161,25 @@ func (n *NoopSqlLogger) ShowExplain() bool {
 }
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	if sqlLogger == nil {
-		sqlLogger = &NoopSqlLogger{}
-	}
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
 	start := time.Now()
 	res, err := tdx.Exec(query, args...)
 	defer func() {
 		duration := time.Since(start)
-		sqlLog := SqlLog{Duration: duration.String(), Sql: fmt.Sprintf("%s %v", query, args)}
+		sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s %v", query, args)}
 		sqlLogger.Log(&sqlLog)
 	}()
 	return res, err
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	if sqlLogger == nil {
-		sqlLogger = &NoopSqlLogger{}
-	}
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
 	start := time.Now()
 	sqlRow, sqlErr := tdx.Query(queryStr, args...)
 	sqlLog := SqlLog{Sql: fmt.Sprintf("%s%v", queryStr, args)}
 	defer func() {
 		duration := time.Since(start)
-		sqlLog.Duration = duration.String()
+		sqlLog.Duration = duration
 		sqlLogger.Log(&sqlLog)
 	}()
 	if sqlLogger.ShowExplain() { //level 2
@@ -205,8 +199,8 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 			Extra        sql.NullString `json:"extra"`
 		}
 		rows, err := tdx.Query(explainStr, args...)
-		defer rows.Close()
 		if err == nil {
+			defer rows.Close()
 			if rows.Next() {
 				e := explain{}
 				cols, err := rows.Columns()
