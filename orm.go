@@ -23,17 +23,10 @@ import (
 
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
+var sqlLogger SqlLogger
 
-const (
-	LogLevelShowNothing = iota
-	LogLevelShowSql
-	LogLeveLShowExplain
-)
-
-var verbose = LogLevelShowNothing
-
-func SetVerbose(logLevel int) {
-	verbose = logLevel
+func SetLog(sqlLog SqlLogger) {
+	sqlLogger = sqlLog
 }
 
 func colName2FieldName(buf string) string {
@@ -139,7 +132,7 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 	return checkStruct(s, cols, tableName)
 }
 
-type logPrint struct {
+type SqlLog struct {
 	Sql      string   `json:"sql"`
 	Duration string   `json:"duration"`
 	Explain  *Explain `json:"explain,omitempty"`
@@ -153,65 +146,79 @@ type Explain struct {
 	Rows   int64  `json:"rows"`
 	Extra  string `json:"extra"`
 }
+type SqlLogger interface {
+	Log(sqlLog *SqlLog)
+	ShowExplain() bool
+}
+type NoopSqlLogger struct{}
+
+func (n *NoopSqlLogger) Log(sqlLog *SqlLog) {
+	data, _ := json.Marshal(sqlLog)
+	log.Printf("[go-orm] %v\n", string(data))
+}
+func (n *NoopSqlLogger) ShowExplain() bool {
+	return true
+}
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
+	if sqlLogger == nil {
+		sqlLogger = SqlLogger(&NoopSqlLogger{})
+	}
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
 	start := time.Now()
 	res, err := tdx.Exec(query, args...)
-	duration := time.Since(start)
-	if verbose >= LogLevelShowNothing {
-		logStr := logPrint{Sql: fmt.Sprintf("[go-orm] exec_sql: %s%v ", query, args), Duration: duration.String()}
-		data, _ := json.Marshal(logStr)
-		log.Println("[go-orm-exec]", string(data))
-	}
+	defer func() {
+		duration := time.Since(start)
+		sqlLog := SqlLog{Duration: duration.String(), Sql: fmt.Sprintf("%s %v", query, args)}
+		sqlLogger.Log(&sqlLog)
+	}()
 	return res, err
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
+	if sqlLogger == nil {
+		sqlLogger = SqlLogger(&NoopSqlLogger{})
+	}
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
 	start := time.Now()
 	sqlRow, sqlErr := tdx.Query(queryStr, args...)
-	duration := time.Since(start)
-
-	logStr := logPrint{}
-	if verbose >= LogLevelShowSql { //level 1
-		logStr.Sql = fmt.Sprintf("%s%v", queryStr, args)
-		logStr.Duration = duration.String()
-		if verbose >= LogLeveLShowExplain { //level 2
-			explainStr := fmt.Sprintf("explain %s", queryStr)
-			type explain struct {
-				Id           sql.NullInt64  `json:"id"`
-				SelectType   sql.NullString `json:"select_type"`
-				Partitions   sql.NullString `json:"partitions"`
-				PossibleKeys sql.NullString `json:"possible_keys"`
-				KeyLen       sql.NullInt64  `json:"key_len"`
-				Filtered     sql.NullString `json:"filtered"`
-				Table        sql.NullString `json:"table"`
-				Type         sql.NullString `json:"type"`
-				Key          sql.NullString `json:"key"`
-				Ref          sql.NullString `json:"ref"`
-				Rows         sql.NullInt64  `json:"rows"`
-				Extra        sql.NullString `json:"extra"`
-			}
-			rows, err := tdx.Query(explainStr, args...)
-			defer rows.Close()
-			if err == nil {
-				if rows.Next() {
-					e := explain{}
-					cols, err := rows.Columns()
-					err = reflectStruct(&e, cols, rows)
-					if err != nil {
-						log.Println("reflect err", err)
-					}
-					exp := Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
-					logStr.Explain = &exp
-				}
-			} else {
-				log.Println("explain query err", err)
-			}
+	sqlLog := SqlLog{Sql: fmt.Sprintf("%s%v", queryStr, args)}
+	defer func() {
+		duration := time.Since(start)
+		sqlLog.Duration = duration.String()
+		sqlLogger.Log(&sqlLog)
+	}()
+	if sqlLogger.ShowExplain() { //level 2
+		explainStr := fmt.Sprintf("explain %s", queryStr)
+		type explain struct {
+			Id           sql.NullInt64  `json:"id"`
+			SelectType   sql.NullString `json:"select_type"`
+			Partitions   sql.NullString `json:"partitions"`
+			PossibleKeys sql.NullString `json:"possible_keys"`
+			KeyLen       sql.NullInt64  `json:"key_len"`
+			Filtered     sql.NullString `json:"filtered"`
+			Table        sql.NullString `json:"table"`
+			Type         sql.NullString `json:"type"`
+			Key          sql.NullString `json:"key"`
+			Ref          sql.NullString `json:"ref"`
+			Rows         sql.NullInt64  `json:"rows"`
+			Extra        sql.NullString `json:"extra"`
 		}
-		data, _ := json.Marshal(logStr)
-		log.Println("[go-orm-query]", string(data))
+		rows, err := tdx.Query(explainStr, args...)
+		defer rows.Close()
+		if err == nil {
+			if rows.Next() {
+				e := explain{}
+				cols, err := rows.Columns()
+				err = reflectStruct(&e, cols, rows)
+				if err != nil {
+					log.Println("reflect err", err)
+				}
+				sqlLog.Explain = &Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
+			}
+		} else {
+			log.Println("explain query err", err)
+		}
 	}
 	return sqlRow, sqlErr
 }
