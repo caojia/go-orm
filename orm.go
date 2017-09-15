@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode"
 	//"strconv"
+	"encoding/json"
 	"strconv"
 )
 
@@ -138,67 +139,79 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 	return checkStruct(s, cols, tableName)
 }
 
+type logPrint struct {
+	Sql      string   `json:"sql"`
+	Duration string   `json:"duration"`
+	Explain  *Explain `json:"explain,omitempty"`
+}
+type Explain struct {
+	Table  string `json:"table"`
+	Type   string `json:"type"`
+	Key    string `json:"key"`
+	KeyLen int64  `json:"key_len"`
+	Ref    string `json:"ref"`
+	Rows   int64  `json:"rows"`
+	Extra  string `json:"extra"`
+}
+
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
+	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
+	start := time.Now()
+	res, err := tdx.Exec(query, args...)
+	duration := time.Since(start)
 	if verbose >= LogLevelShowNothing {
-		log.Println("[go-orm] exec sql:", query, args)
+		logStr := logPrint{Sql: fmt.Sprintf("[go-orm] exec_sql: %s%v ", query, args), Duration: duration.String()}
+		data, _ := json.Marshal(logStr)
+		log.Println("[go-orm-exec]", string(data))
 	}
-	return tdx.Exec(query, args...)
+	return res, err
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
+	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
 	start := time.Now()
 	sqlRow, sqlErr := tdx.Query(queryStr, args...)
 	duration := time.Since(start)
-	logStr := "[go-orm]"
+
+	logStr := logPrint{}
 	if verbose >= LogLevelShowSql { //level 1
-		logStr = fmt.Sprintf("%s query_sql: %s%v ,query_duration: %v", logStr, regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " "), args, duration)
+		logStr.Sql = fmt.Sprintf("%s%v", queryStr, args)
+		logStr.Duration = duration.String()
 		if verbose >= LogLeveLShowExplain { //level 2
 			explainStr := fmt.Sprintf("explain %s", queryStr)
+			type explain struct {
+				Id           sql.NullInt64  `json:"id"`
+				SelectType   sql.NullString `json:"select_type"`
+				Partitions   sql.NullString `json:"partitions"`
+				PossibleKeys sql.NullString `json:"possible_keys"`
+				KeyLen       sql.NullInt64  `json:"key_len"`
+				Filtered     sql.NullString `json:"filtered"`
+				Table        sql.NullString `json:"table"`
+				Type         sql.NullString `json:"type"`
+				Key          sql.NullString `json:"key"`
+				Ref          sql.NullString `json:"ref"`
+				Rows         sql.NullInt64  `json:"rows"`
+				Extra        sql.NullString `json:"extra"`
+			}
 			rows, err := tdx.Query(explainStr, args...)
 			defer rows.Close()
-			if err != nil {
-				log.Println("explain query err : ", err)
-			} else {
-			}
-			itemMap := make(map[string]interface{})
-			for rows.Next() {
-				cols, err := rows.Columns()
-				if err != nil {
-					log.Println("explain err : ", err)
-				}
-				itemList := make([]interface{}, len(cols))
-				for i := range itemList {
-					itemList[i] = new(interface{})
-				}
-				err = rows.Scan(itemList...)
-				if err != nil {
-					log.Println("explain rows scan err : ", err)
-				}
-				for k, c := range cols {
-					switch t := (*itemList[k].(*interface{})).(type) {
-					case []uint8:
-						itemMap[c] = string(t[:])
-					case time.Time:
-						itemMap[c] = t.Format("2006-01-02 15:04:05")
-					case int64:
-						itemMap[c] = t
-					case int:
-						itemMap[c] = t
-					case float32:
-						itemMap[c] = t
-					case float64:
-						itemMap[c] = t
-					case string:
-						itemMap[c] = t
-					case nil:
-						itemMap[c] = nil
-					default:
+			if err == nil {
+				if rows.Next() {
+					e := explain{}
+					cols, err := rows.Columns()
+					err = reflectStruct(&e, cols, rows)
+					if err != nil {
+						log.Println("reflect err", err)
 					}
+					exp := Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
+					logStr.Explain = &exp
 				}
+			} else {
+				log.Println("explain query err", err)
 			}
-			logStr = fmt.Sprintf("%s ,sql_explain : [table:%v ,type:%v ,key:%v ,ref:%v ,rows:%v ,extra:%v]", logStr, itemMap["table"], itemMap["type"], itemMap["key"], itemMap["ref"], itemMap["rows"], itemMap["Extra"])
 		}
-		log.Println(logStr)
+		data, _ := json.Marshal(logStr)
+		log.Println("[go-orm-query]", string(data))
 	}
 	return sqlRow, sqlErr
 }
