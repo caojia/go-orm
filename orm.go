@@ -1009,6 +1009,22 @@ func insert(tdx Tdx, s interface{}) error {
 	return nil
 }
 
+//通过传递需要更新的字段,去更新部分字段
+func updateFieldsByPK(tdx Tdx, s interface{}, cols []string) error {
+	_, _, ifs, pk, _, pkName := columnsByStruct(s)
+	cs := make([]string, 0)
+	for _, col := range cols {
+		cs = append(cs, col+" = ?")
+	}
+	sv := strings.Join(cs, ",")
+	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	_, err := exec(tdx, q, ifs...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func updateByPK(tdx Tdx, s interface{}) error {
 	colStr, _, ifs, pk, _, pkName := columnsByStruct(s)
 	cols := strings.Split(colStr, ",")
@@ -1057,6 +1073,7 @@ type ORMer interface {
 	SelectStr(string, ...interface{}) (string, error)
 	SelectInt(string, ...interface{}) (int64, error)
 	UpdateByPK(interface{}) error
+	UpdateFieldsByPK(interface{}, []string) error
 	Insert(interface{}) error
 	InsertBatch([]interface{}) error
 	Exec(string, ...interface{}) (sql.Result, error)
@@ -1174,6 +1191,9 @@ func (o *ORM) SelectInt(query string, args ...interface{}) (int64, error) {
 
 func (o *ORM) UpdateByPK(s interface{}) error {
 	return updateByPK(o.db, s)
+}
+func (o *ORM) UpdateFieldsByPK(s interface{}, fields []string) error {
+	return updateFieldsByPK(o.db, s, fields)
 }
 
 func (o *ORM) Insert(s interface{}) error {
