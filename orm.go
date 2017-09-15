@@ -198,14 +198,12 @@ func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
 	sqlLogger.Log(&sqlLog)
 }
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	start := time.Now()
-	defer logPrint(start, tdx, query, args)
+	defer logPrint(time.Now(), tdx, query, args...)
 	return tdx.Exec(query, args...)
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	start := time.Now()
-	defer logPrint(start, tdx, queryStr, args)
+	defer logPrint(time.Now(), tdx, queryStr, args...)
 	return tdx.Query(queryStr, args...)
 }
 
