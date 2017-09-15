@@ -162,7 +162,7 @@ func (n *NoopSqlLogger) ShowExplain() bool {
 
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 	if sqlLogger == nil {
-		sqlLogger = SqlLogger(&NoopSqlLogger{})
+		sqlLogger = &NoopSqlLogger{}
 	}
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
 	start := time.Now()
@@ -177,7 +177,7 @@ func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 	if sqlLogger == nil {
-		sqlLogger = SqlLogger(&NoopSqlLogger{})
+		sqlLogger = &NoopSqlLogger{}
 	}
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
 	start := time.Now()
