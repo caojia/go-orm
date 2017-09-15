@@ -23,7 +23,7 @@ import (
 
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
-var sqlLogger SqlLogger = &NoopSqlLogger{}
+var sqlLogger SqlLogger = &VerboseSqlLogger{}
 
 func SetLog(sqlLog SqlLogger) {
 	sqlLogger = sqlLog
@@ -150,40 +150,21 @@ type SqlLogger interface {
 	Log(sqlLog *SqlLog)
 	ShowExplain() bool
 }
-type NoopSqlLogger struct{}
+type VerboseSqlLogger struct{}
 
-func (n *NoopSqlLogger) Log(sqlLog *SqlLog) {
+func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
 	data, _ := json.Marshal(sqlLog)
 	log.Printf("[go-orm] %v\n", string(data))
 }
-func (n *NoopSqlLogger) ShowExplain() bool {
+func (n *VerboseSqlLogger) ShowExplain() bool {
 	return true
 }
-
-func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
+func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
-	start := time.Now()
-	res, err := tdx.Exec(query, args...)
-	defer func() {
-		duration := time.Since(start)
-		sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s %v", query, args)}
-		sqlLogger.Log(&sqlLog)
-	}()
-	return res, err
-}
-
-func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
-	start := time.Now()
-	sqlRow, sqlErr := tdx.Query(queryStr, args...)
-	sqlLog := SqlLog{Sql: fmt.Sprintf("%s%v", queryStr, args)}
-	defer func() {
-		duration := time.Since(start)
-		sqlLog.Duration = duration
-		sqlLogger.Log(&sqlLog)
-	}()
-	if sqlLogger.ShowExplain() { //level 2
-		explainStr := fmt.Sprintf("explain %s", queryStr)
+	sqlLog := SqlLog{Sql: fmt.Sprintf("%s%v", query, args)}
+	sqlLog.Duration = time.Since(start)
+	if sqlLogger.ShowExplain() {
+		explainStr := fmt.Sprintf("explain %s", query)
 		type explain struct {
 			Id           sql.NullInt64  `json:"id"`
 			SelectType   sql.NullString `json:"select_type"`
@@ -214,7 +195,18 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 			log.Println("explain query err", err)
 		}
 	}
-	return sqlRow, sqlErr
+	sqlLogger.Log(&sqlLog)
+}
+func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
+	start := time.Now()
+	defer logPrint(start, tdx, query, args)
+	return tdx.Exec(query, args...)
+}
+
+func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
+	start := time.Now()
+	defer logPrint(start, tdx, queryStr, args)
+	return tdx.Query(queryStr, args...)
 }
 
 func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
