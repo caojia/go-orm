@@ -161,8 +161,7 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 }
 func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
-	sqlLog := SqlLog{Sql: fmt.Sprintf("%s%v", query, args)}
-	sqlLog.Duration = time.Since(start)
+	sqlLog := SqlLog{Duration: time.Since(start), Sql: fmt.Sprintf("%s%v", query, args)}
 	if sqlLogger.ShowExplain() {
 		explainStr := fmt.Sprintf("explain %s", query)
 		type explain struct {
