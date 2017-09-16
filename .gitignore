@@ -9,3 +9,4 @@ databases/.yoyo-migrate
 entry/dayhole
 schema.sql
 job/job
+test
