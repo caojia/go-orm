@@ -17,24 +17,21 @@ import (
 	"time"
 	"unicode"
 	//"strconv"
+	"encoding/json"
 	"strconv"
 )
 
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
+var sqlLogger SqlLogger = &VerboseSqlLogger{}
 
-const (
-	LogLevelShowNothing = iota
-	LogLevelShowSql
-	LogLeveLShowExplain
-)
-
-var verbose = LogLevelShowNothing
-
-func SetVerbose(logLevel int) {
-	verbose = logLevel
+func SetLog(sqlLog SqlLogger) {
+	sqlLogger = sqlLog
 }
 
+/**
+把数据库中的字段(可以处理带下划线的字段)转化为struct中的字段，首字母大写和驼峰
+*/
 func colName2FieldName(buf string) string {
 	tks := strings.Split(buf, "_")
 	ret := ""
@@ -44,6 +41,9 @@ func colName2FieldName(buf string) string {
 	return ret
 }
 
+/**
+把struct中的字段转化为数据库中的字段
+*/
 func fieldName2ColName(buf string) string {
 	w := bytes.Buffer{}
 	for k, c := range buf {
@@ -59,11 +59,17 @@ func fieldName2ColName(buf string) string {
 	return w.String()
 }
 
+/*
+ 通过reflect把row中的值映射到一个struct中
+*/
 func reflectStruct(s interface{}, cols []string, row *sql.Rows) error {
 	v := reflect.ValueOf(s)
 	return reflectStructValue(v, cols, row)
 }
 
+/**
+
+ */
 func reflectStructValue(v reflect.Value, cols []string, row *sql.Rows) error {
 	if v.Kind() != reflect.Ptr {
 		panic(errors.New("holder should be pointer"))
@@ -138,64 +144,80 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 	return checkStruct(s, cols, tableName)
 }
 
-func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	if verbose >= LogLevelShowNothing {
-		log.Println("[go-orm] exec sql:", query, args)
+type SqlLog struct {
+	Sql      string        `json:"sql"`
+	Duration time.Duration `json:"duration"`
+	Explain  *Explain      `json:"explain,omitempty"`
+}
+type Explain struct {
+	Table  string `json:"table"`
+	Type   string `json:"type"`
+	Key    string `json:"key"`
+	KeyLen int64  `json:"key_len"`
+	Ref    string `json:"ref"`
+	Rows   int64  `json:"rows"`
+	Extra  string `json:"extra"`
+}
+type SqlLogger interface {
+	Log(sqlLog *SqlLog)
+	ShowExplain() bool
+}
+type VerboseSqlLogger struct{}
+
+func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
+	data, _ := json.Marshal(sqlLog)
+	log.Printf("[go-orm] %v\n", string(data))
+}
+
+func (n *VerboseSqlLogger) ShowExplain() bool {
+	return false
+}
+
+func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
+	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
+	duration := time.Since(start)
+	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", query, args)}
+	if sqlLogger.ShowExplain() {
+		explainStr := fmt.Sprintf("explain %s", query)
+		type explain struct {
+			Id           sql.NullInt64  `json:"id"`
+			SelectType   sql.NullString `json:"select_type"`
+			Partitions   sql.NullString `json:"partitions"`
+			PossibleKeys sql.NullString `json:"possible_keys"`
+			KeyLen       sql.NullInt64  `json:"key_len"`
+			Filtered     sql.NullString `json:"filtered"`
+			Table        sql.NullString `json:"table"`
+			Type         sql.NullString `json:"type"`
+			Key          sql.NullString `json:"key"`
+			Ref          sql.NullString `json:"ref"`
+			Rows         sql.NullInt64  `json:"rows"`
+			Extra        sql.NullString `json:"extra"`
+		}
+		rows, err := tdx.Query(explainStr, args...)
+		if err == nil {
+			defer rows.Close()
+			if rows.Next() {
+				e := explain{}
+				cols, err := rows.Columns()
+				err = reflectStruct(&e, cols, rows)
+				if err != nil {
+					log.Println("reflect err", err)
+				}
+				sqlLog.Explain = &Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
+			}
+		} else {
+			log.Println("explain query err", err)
+		}
 	}
+	sqlLogger.Log(&sqlLog)
+}
+func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
+	defer logPrint(time.Now(), tdx, query, args...)
 	return tdx.Exec(query, args...)
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	if verbose >= LogLevelShowSql { //level 1
-		logStr := fmt.Sprintf("[go-orm] query sql: %s%v", regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " "), args)
-		if verbose >= LogLeveLShowExplain { //level 2
-			explainStr := fmt.Sprintf("explain %s", queryStr)
-			rows, err := tdx.Query(explainStr, args...)
-			defer rows.Close()
-			if err != nil {
-				log.Println("explain query err : ", err)
-			} else {
-			}
-			itemMap := make(map[string]interface{})
-			for rows.Next() {
-				cols, err := rows.Columns()
-				if err != nil {
-					log.Println("explain err : ", err)
-				}
-				itemList := make([]interface{}, len(cols))
-				for i := range itemList {
-					itemList[i] = new(interface{})
-				}
-				err = rows.Scan(itemList...)
-				if err != nil {
-					log.Println("explain rows scan err : ", err)
-				}
-				for k, c := range cols {
-					switch t := (*itemList[k].(*interface{})).(type) {
-					case []uint8:
-						itemMap[c] = string(t[:])
-					case time.Time:
-						itemMap[c] = t.Format("2006-01-02 15:04:05")
-					case int64:
-						itemMap[c] = t
-					case int:
-						itemMap[c] = t
-					case float32:
-						itemMap[c] = t
-					case float64:
-						itemMap[c] = t
-					case string:
-						itemMap[c] = t
-					case nil:
-						itemMap[c] = nil
-					default:
-					}
-				}
-			}
-			logStr = fmt.Sprintf("%s\n[go-orm] sql explain : [table:%v ,type:%v ,key:%v ,ref:%v ,rows:%v ,extra:%v]", logStr, itemMap["table"], itemMap["type"], itemMap["key"], itemMap["ref"], itemMap["rows"], itemMap["Extra"])
-		}
-		log.Println(logStr)
-	}
+	defer logPrint(time.Now(), tdx, queryStr, args...)
 	return tdx.Query(queryStr, args...)
 }
 
@@ -683,9 +705,28 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			hasOrCols = orCols != nil && len(orCols) > 0
 		}
 	}
-
+	//对args的数组进行处理
+	//for k,v:= range args {
+	//	switch t := v.(type) {
+	//	case []string:
+	//		args[k] = strings.Join(t, ",")
+	//	case []int:
+	//		str := []string{}
+	//		for _, value := range t {
+	//			str = append(str, strconv.Itoa(value))
+	//		}
+	//		args[k] = strings.Join(str, ",")
+	//	case []int64:
+	//		str := []string{}
+	//		for _, value := range t {
+	//			str = append(str, strconv.Itoa(int(value)))
+	//		}
+	//		args[k] = strings.Join(str, ",")
+	//	default:
+	//	}
+	//}
+	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
-
 	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
 		return err
@@ -845,6 +886,44 @@ func makeString(start, split, end string, ids []interface{}) string {
 
 var zeroTime = time.Unix(1, 0)
 
+/**
+通过fields中的字段获取部分数据以及主建和主键的值
+*/
+func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect.Value, bool, string) {
+	t := reflect.TypeOf(s).Elem()
+	v := reflect.ValueOf(s).Elem()
+	ret := make([]interface{}, 0, len(cols))
+	var pk reflect.Value
+	var pkName string
+	isAi := false
+	//反射遍历整个struct找到主键和主键的值，一般都是第一个
+	for k := 0; k < t.NumField(); k++ {
+		ft := t.Field(k)
+		if ft.Tag.Get("pk") == "true" {
+			pk = v.Field(k)
+			pkName = fieldName2ColName(ft.Name)
+			if ft.Tag.Get("ai") == "true" {
+				isAi = true
+			}
+			break
+		}
+	}
+	//通过cols获取struct中的值
+	for _, value := range cols {
+		r := v.FieldByName(value).Addr().Interface()
+		if v.FieldByName(value).Type().String() == "time.Time" {
+			if r.(*time.Time).IsZero() {
+				r = &zeroTime
+			}
+		}
+		ret = append(ret, r)
+	}
+	return ret, pk, isAi, pkName
+}
+
+/**
+解析一个struct，解析适合数据库操作的cols，vals,args，还有主键和主键值
+*/
 func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Value, bool, string) {
 	t := reflect.TypeOf(s).Elem()
 	v := reflect.ValueOf(s).Elem()
@@ -969,7 +1048,6 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 
 func insert(tdx Tdx, s interface{}) error {
 	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
-
 	q := fmt.Sprintf("insert into %s (%s) values(%s)", getTableName(s), cols, vals)
 	ret, err := exec(tdx, q, ifs...)
 	if err != nil {
@@ -981,6 +1059,22 @@ func insert(tdx Tdx, s interface{}) error {
 			return err
 		}
 		pk.SetInt(lid)
+	}
+	return nil
+}
+
+//通过传递需要更新的字段,去更新部分字段
+func updateFieldsByPK(tdx Tdx, s interface{}, cols []string) error {
+	ifs, pk, _, pkName := columnsByStructFields(s, cols)
+	cs := make([]string, 0)
+	for _, col := range cols {
+		cs = append(cs, fieldName2ColName(col)+" = ?")
+	}
+	sv := strings.Join(cs, ",")
+	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	_, err := exec(tdx, q, ifs...)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -1033,6 +1127,7 @@ type ORMer interface {
 	SelectStr(string, ...interface{}) (string, error)
 	SelectInt(string, ...interface{}) (int64, error)
 	UpdateByPK(interface{}) error
+	UpdateFieldsByPK(interface{}, []string) error
 	Insert(interface{}) error
 	InsertBatch([]interface{}) error
 	Exec(string, ...interface{}) (sql.Result, error)
@@ -1150,6 +1245,9 @@ func (o *ORM) SelectInt(query string, args ...interface{}) (int64, error) {
 
 func (o *ORM) UpdateByPK(s interface{}) error {
 	return updateByPK(o.db, s)
+}
+func (o *ORM) UpdateFieldsByPK(s interface{}, fields []string) error {
+	return updateFieldsByPK(o.db, s, fields)
 }
 
 func (o *ORM) Insert(s interface{}) error {

@@ -190,6 +190,32 @@ func TestORMUpdate(t *testing.T) {
 		}
 	})
 }
+func TestORMUpdateFieldsByPK(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		testObj := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		orm.Insert(testObj)
+		testObj.Description = "update"
+		testObj.OtherId = 1000
+		orm.UpdateFieldsByPK(testObj, []string{"Description", "OtherId"})
+		var loadedObj TestOrmA123
+		if err := orm.SelectByPK(&loadedObj, testObj.TestId); err != nil {
+			t.Error(err)
+			if len(loadedObj.Description) == 0 {
+				t.Error(loadedObj)
+			}
+			return
+		} else if loadedObj.Description != "update" && loadedObj.OtherId != 2 {
+			t.Error(loadedObj.OtherId)
+			return
+		}
+	})
+}
 
 func TestQueryRawSetAndQueryRaw(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
