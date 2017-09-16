@@ -706,25 +706,24 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 		}
 	}
 	//对args的数组进行处理
-	//for k,v:= range args {
-	//	switch t := v.(type) {
-	//	case []string:
-	//		args[k] = strings.Join(t, ",")
-	//	case []int:
-	//		str := []string{}
-	//		for _, value := range t {
-	//			str = append(str, strconv.Itoa(value))
-	//		}
-	//		args[k] = strings.Join(str, ",")
-	//	case []int64:
-	//		str := []string{}
-	//		for _, value := range t {
-	//			str = append(str, strconv.Itoa(int(value)))
-	//		}
-	//		args[k] = strings.Join(str, ",")
-	//	default:
-	//	}
-	//}
+	for k, v := range args {
+		switch t := v.(type) {
+		case []string:
+			args[k] = strings.Join(t, ",")
+		case []int:
+			str := []string{}
+			for _, value := range t {
+				str = append(str, strconv.Itoa(value))
+			}
+			args[k] = strings.Join(str, ",")
+		case []int64:
+			str := []string{}
+			for _, value := range t {
+				str = append(str, strconv.Itoa(int(value)))
+			}
+			args[k] = strings.Join(str, ",")
+		}
+	}
 	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
 	rows, err := query(tdx, queryStr, args...)
