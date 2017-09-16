@@ -1061,6 +1061,26 @@ func insert(tdx Tdx, s interface{}) error {
 	}
 	return nil
 }
+func insertDuplicateKeyUpdate(tdx Tdx, s interface{}, keys []string) error {
+	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
+	for k, v := range keys {
+		str := fmt.Sprintf("%s = values(%s),", v, v)
+		keys[k] = str
+	}
+	q := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s", getTableName(s), cols, vals, strings.Join(keys, ","))
+	ret, err := exec(tdx, q, ifs...)
+	if err != nil {
+		return err
+	}
+	if isAi {
+		lid, err := ret.LastInsertId()
+		if err != nil {
+			return err
+		}
+		pk.SetInt(lid)
+	}
+	return nil
+}
 
 //通过传递需要更新的字段,去更新部分字段
 func updateFieldsByPK(tdx Tdx, s interface{}, cols []string) error {
@@ -1128,6 +1148,7 @@ type ORMer interface {
 	UpdateByPK(interface{}) error
 	UpdateFieldsByPK(interface{}, []string) error
 	Insert(interface{}) error
+	InsertDuplicateKeyUpdate(interface{}, []string) error
 	InsertBatch([]interface{}) error
 	Exec(string, ...interface{}) (sql.Result, error)
 	Query(string, ...interface{}) (*sql.Rows, error)
@@ -1255,6 +1276,10 @@ func (o *ORM) Insert(s interface{}) error {
 
 func (o *ORM) InsertBatch(s []interface{}) error {
 	return insertBatch(o.db, s)
+}
+
+func (o *ORM) InsertDuplicateKeyUpdate(s interface{}, keys []string) error {
+	return insertDuplicateKeyUpdate(o.db, s, keys)
 }
 
 func (o *ORM) ExecWithRowAffectCheck(n int64, query string, args ...interface{}) error {
