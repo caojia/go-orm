@@ -879,19 +879,16 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 	//反射遍历整个struct找到主键和主键的值
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
-		//auto increment field
 		if ft.Tag.Get("pk") == "true" {
 			pk = v.Field(k)
 			pkName = fieldName2ColName(ft.Name)
 			if ft.Tag.Get("ai") == "true" {
 				isAi = true
-				continue
 			}
-		}
-		if ft.Tag.Get("ignore") == "true" || ft.Tag.Get("or") != "" {
-			continue
+			break
 		}
 	}
+	//通过cols获取struct中的值
 	for _, value := range cols {
 		r := v.FieldByName(value).Addr().Interface()
 		if v.FieldByName(value).Type().String() == "time.Time" {
