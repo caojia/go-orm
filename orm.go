@@ -24,15 +24,14 @@ import (
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
 var sqlLogger SqlLogger = &VerboseSqlLogger{}
-var isDurationLimit bool = false
 
 func SetLog(sqlLog SqlLogger) {
 	sqlLogger = sqlLog
 }
-func OpenDurationLimit() {
-	isDurationLimit = true
-}
 
+/**
+把数据库中的字段(可以处理带下划线的字段)转化为struct中的字段，首字母大写和驼峰
+*/
 func colName2FieldName(buf string) string {
 	tks := strings.Split(buf, "_")
 	ret := ""
@@ -42,6 +41,9 @@ func colName2FieldName(buf string) string {
 	return ret
 }
 
+/**
+把struct中的字段转化为数据库中的字段
+*/
 func fieldName2ColName(buf string) string {
 	w := bytes.Buffer{}
 	for k, c := range buf {
@@ -57,11 +59,17 @@ func fieldName2ColName(buf string) string {
 	return w.String()
 }
 
+/*
+ 通过reflect把row中的值映射到一个struct中
+*/
 func reflectStruct(s interface{}, cols []string, row *sql.Rows) error {
 	v := reflect.ValueOf(s)
 	return reflectStructValue(v, cols, row)
 }
 
+/**
+
+ */
 func reflectStructValue(v reflect.Value, cols []string, row *sql.Rows) error {
 	if v.Kind() != reflect.Ptr {
 		panic(errors.New("holder should be pointer"))
@@ -160,15 +168,14 @@ func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
 	data, _ := json.Marshal(sqlLog)
 	log.Printf("[go-orm] %v\n", string(data))
 }
+
 func (n *VerboseSqlLogger) ShowExplain() bool {
 	return true
 }
+
 func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
 	duration := time.Since(start)
-	if isDurationLimit && duration < 100*time.Millisecond { //是否限制sql的duration在100ms上的sql,默认是不开启
-		return
-	}
 	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", query, args)}
 	if sqlLogger.ShowExplain() {
 		explainStr := fmt.Sprintf("explain %s", query)
@@ -700,7 +707,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	}
 
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
-
 	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
 		return err
