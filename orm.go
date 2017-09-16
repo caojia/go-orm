@@ -24,9 +24,13 @@ import (
 var sqlParamReg *regexp.Regexp
 var initOnce sync.Once
 var sqlLogger SqlLogger = &VerboseSqlLogger{}
+var isDurationLimit bool = false
 
 func SetLog(sqlLog SqlLogger) {
 	sqlLogger = sqlLog
+}
+func OpenDurationLimit() {
+	isDurationLimit = true
 }
 
 func colName2FieldName(buf string) string {
@@ -161,7 +165,11 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 }
 func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
-	sqlLog := SqlLog{Duration: time.Since(start), Sql: fmt.Sprintf("%s%v", query, args)}
+	duration := time.Since(start)
+	if isDurationLimit && duration < 100*time.Millisecond { //是否限制sql的duration在100ms上的sql,默认是不开启
+		return
+	}
+	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", query, args)}
 	if sqlLogger.ShowExplain() {
 		explainStr := fmt.Sprintf("explain %s", query)
 		type explain struct {
