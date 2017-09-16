@@ -202,7 +202,7 @@ func TestORMUpdateFieldsByPK(t *testing.T) {
 		orm.Insert(testObj)
 		testObj.Description = "update"
 		testObj.OtherId = 1000
-		orm.UpdateFieldsByPK(testObj, []string{"description"})
+		orm.UpdateFieldsByPK(testObj, []string{"Description"})
 		var loadedObj TestOrmA123
 		if err := orm.SelectByPK(&loadedObj, testObj.TestId); err != nil {
 			t.Error(err)
@@ -210,8 +210,8 @@ func TestORMUpdateFieldsByPK(t *testing.T) {
 				t.Error(loadedObj)
 			}
 			return
-		} else if loadedObj.Description != "update" && loadedObj.OtherId != 1 {
-			t.Error(loadedObj)
+		} else if loadedObj.Description != "update" && loadedObj.OtherId == 1000 {
+			t.Error(loadedObj.OtherId)
 			return
 		}
 	})

@@ -170,7 +170,7 @@ func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
 }
 
 func (n *VerboseSqlLogger) ShowExplain() bool {
-	return true
+	return false
 }
 
 func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
@@ -866,6 +866,44 @@ func makeString(start, split, end string, ids []interface{}) string {
 
 var zeroTime = time.Unix(1, 0)
 
+/**
+通过fields中的字段获取部分数据以及主建和主键的值
+*/
+func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect.Value, bool, string) {
+	t := reflect.TypeOf(s).Elem()
+	v := reflect.ValueOf(s).Elem()
+	ret := make([]interface{}, 0, len(cols))
+	var pk reflect.Value
+	var pkName string
+	isAi := false
+	//反射遍历整个struct找到主键和主键的值
+	for k := 0; k < t.NumField(); k++ {
+		ft := t.Field(k)
+		//auto increment field
+		if ft.Tag.Get("pk") == "true" {
+			pk = v.Field(k)
+			pkName = fieldName2ColName(ft.Name)
+			if ft.Tag.Get("ai") == "true" {
+				isAi = true
+				continue
+			}
+		}
+		if ft.Tag.Get("ignore") == "true" || ft.Tag.Get("or") != "" {
+			continue
+		}
+	}
+	for _, value := range cols {
+		r := v.FieldByName(value).Addr().Interface()
+		if v.FieldByName(value).Type().String() == "time.Time" {
+			if r.(*time.Time).IsZero() {
+				r = &zeroTime
+			}
+		}
+		ret = append(ret, r)
+	}
+	return ret, pk, isAi, pkName
+}
+
 func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Value, bool, string) {
 	t := reflect.TypeOf(s).Elem()
 	v := reflect.ValueOf(s).Elem()
@@ -1008,10 +1046,10 @@ func insert(tdx Tdx, s interface{}) error {
 
 //通过传递需要更新的字段,去更新部分字段
 func updateFieldsByPK(tdx Tdx, s interface{}, cols []string) error {
-	_, _, ifs, pk, _, pkName := columnsByStruct(s)
+	ifs, pk, _, pkName := columnsByStructFields(s, cols)
 	cs := make([]string, 0)
 	for _, col := range cols {
-		cs = append(cs, col+" = ?")
+		cs = append(cs, fieldName2ColName(col)+" = ?")
 	}
 	sv := strings.Join(cs, ",")
 	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
