@@ -705,7 +705,27 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			hasOrCols = orCols != nil && len(orCols) > 0
 		}
 	}
-
+	//对args的数组进行处理
+	//for k,v:= range args {
+	//	switch t := v.(type) {
+	//	case []string:
+	//		args[k] = strings.Join(t, ",")
+	//	case []int:
+	//		str := []string{}
+	//		for _, value := range t {
+	//			str = append(str, strconv.Itoa(value))
+	//		}
+	//		args[k] = strings.Join(str, ",")
+	//	case []int64:
+	//		str := []string{}
+	//		for _, value := range t {
+	//			str = append(str, strconv.Itoa(int(value)))
+	//		}
+	//		args[k] = strings.Join(str, ",")
+	//	default:
+	//	}
+	//}
+	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
 	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
@@ -876,7 +896,7 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 	var pk reflect.Value
 	var pkName string
 	isAi := false
-	//反射遍历整个struct找到主键和主键的值
+	//反射遍历整个struct找到主键和主键的值，一般都是第一个
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
 		if ft.Tag.Get("pk") == "true" {
@@ -901,6 +921,9 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 	return ret, pk, isAi, pkName
 }
 
+/**
+解析一个struct，解析适合数据库操作的cols，vals,args，还有主键和主键值
+*/
 func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Value, bool, string) {
 	t := reflect.TypeOf(s).Elem()
 	v := reflect.ValueOf(s).Elem()
@@ -1025,7 +1048,6 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 
 func insert(tdx Tdx, s interface{}) error {
 	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
-
 	q := fmt.Sprintf("insert into %s (%s) values(%s)", getTableName(s), cols, vals)
 	ret, err := exec(tdx, q, ifs...)
 	if err != nil {

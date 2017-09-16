@@ -68,7 +68,7 @@ func (obj TestOrmF123) TableName() string {
 }
 
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
-	orm := NewORM("root:123456@tcp(127.0.0.1:3306)/orm_test?parseTime=true&loc=Local")
+	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
 	_, err := orm.Exec(`
         CREATE TABLE IF NOT EXISTS test_orm_a123 (
@@ -202,7 +202,7 @@ func TestORMUpdateFieldsByPK(t *testing.T) {
 		orm.Insert(testObj)
 		testObj.Description = "update"
 		testObj.OtherId = 1000
-		orm.UpdateFieldsByPK(testObj, []string{"Description"})
+		orm.UpdateFieldsByPK(testObj, []string{"Description", "OtherId"})
 		var loadedObj TestOrmA123
 		if err := orm.SelectByPK(&loadedObj, testObj.TestId); err != nil {
 			t.Error(err)
@@ -210,7 +210,7 @@ func TestORMUpdateFieldsByPK(t *testing.T) {
 				t.Error(loadedObj)
 			}
 			return
-		} else if loadedObj.Description != "update" && loadedObj.OtherId == 1000 {
+		} else if loadedObj.Description != "update" && loadedObj.OtherId != 2 {
 			t.Error(loadedObj.OtherId)
 			return
 		}
