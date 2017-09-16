@@ -68,7 +68,7 @@ func (obj TestOrmF123) TableName() string {
 }
 
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
-	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
+	orm := NewORM("root:123456@tcp(127.0.0.1:3306)/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
 	_, err := orm.Exec(`
         CREATE TABLE IF NOT EXISTS test_orm_a123 (
@@ -353,7 +353,7 @@ func TestAutoIncreaseKey(t *testing.T) {
 		testObj := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
-			Description: "test orm 1测试",
+			Description: "test orm",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -378,7 +378,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 		testObj := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
-			Description: "test orm 1测试",
+			Description: "test orm",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -399,7 +399,8 @@ func TestOrmHasOneRelation(t *testing.T) {
 
 		var testObj2 TestOrmA123
 		start := time.Now()
-		err := orm.SelectOne(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj.TestId)
+		err := orm.Select(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?",testObj2.TestId)
+		log.Println(err)
 		t.Logf("elapsed time %v", time.Now().Sub(start))
 		if err != nil {
 			t.Fatal(err)

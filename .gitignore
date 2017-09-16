@@ -10,3 +10,4 @@ entry/dayhole
 schema.sql
 job/job
 test
+orm_test.go
