@@ -1061,10 +1061,12 @@ func insert(tdx Tdx, s interface{}) error {
 	}
 	return nil
 }
+
 func insertDuplicateKeyUpdate(tdx Tdx, s interface{}, keys []string) error {
 	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
 	for k, v := range keys {
-		str := fmt.Sprintf("%s = values(%s),", v, v)
+		v = fieldName2ColName(v)
+		str := fmt.Sprintf("%s = values(%s)", v, v)
 		keys[k] = str
 	}
 	q := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s", getTableName(s), cols, vals, strings.Join(keys, ","))

@@ -68,7 +68,7 @@ func (obj TestOrmF123) TableName() string {
 }
 
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
-	orm := NewORM("root:123456@tcp(127.0.0.1:3306)/orm_test?parseTime=true&loc=Local")
+	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
 	_, err := orm.Exec(`
         CREATE TABLE IF NOT EXISTS test_orm_a123 (
@@ -187,6 +187,25 @@ func TestORMUpdate(t *testing.T) {
 		} else if loadedObj.Description != "update" {
 			t.Error(loadedObj)
 			return
+		}
+	})
+}
+func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		testObj := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		orm.Insert(testObj)
+		orm.InsertDuplicateKeyUpdate(testObj, []string{"TestId"})
+		var loadobj []*TestOrmA123
+		if err := orm.Select(&loadobj, "select * from test_orm_a123 where other_id = ?", 1); err != nil {
+			t.Error(err)
+		} else if len(loadobj) != 2 {
+			t.Error(len(loadobj))
 		}
 	})
 }
@@ -399,7 +418,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 
 		var testObj2 TestOrmA123
 		start := time.Now()
-		err := orm.Select(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?",testObj2.TestId)
+		err := orm.Select(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj2.TestId)
 		log.Println(err)
 		t.Logf("elapsed time %v", time.Now().Sub(start))
 		if err != nil {
