@@ -170,7 +170,7 @@ func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
 }
 
 func (n *VerboseSqlLogger) ShowExplain() bool {
-	return false
+	return true
 }
 
 func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
@@ -205,8 +205,6 @@ func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
 				}
 				sqlLog.Explain = &Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
 			}
-		} else {
-			log.Println("explain query err", err)
 		}
 	}
 	sqlLogger.Log(&sqlLog)
@@ -967,6 +965,7 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 	}
 	//通过cols获取struct中的值
 	for _, value := range cols {
+		value = colName2FieldName(value)
 		r := v.FieldByName(value).Addr().Interface()
 		if v.FieldByName(value).Type().String() == "time.Time" {
 			if r.(*time.Time).IsZero() {
