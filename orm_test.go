@@ -192,18 +192,34 @@ func TestORMUpdate(t *testing.T) {
 }
 func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
-		testObj := &TestOrmA123{
+		testObj1 := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
 			Description: "update test ",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
-		orm.Insert(testObj)
-		testObj.OtherId = 1
-		testObj.StartDate = time.Now()
-		err := orm.InsertDuplicateKeyUpdate(testObj, []string{"TestId", "OtherId"})
-		log.Println(err)
+		orm.Insert(testObj1)
+		if testObj1.TestId != 1 {
+			t.Fatal("test id should be 1")
+		}
+		testObj1.TestId = 1
+		testObj1.StartDate = time.Now()
+		err := orm.InsertOrUpdate(testObj1, []string{"TestId"})
+		if err != nil {
+			t.Error(err)
+		}
+		testObj2 := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		err = orm.Insert(testObj2)
+		if err != nil {
+			t.Error(err)
+		}
 		var loadobj []*TestOrmA123
 		if err := orm.Select(&loadobj, "select * from test_orm_a123 where other_id = ?", 1); err != nil {
 			t.Error(err)
