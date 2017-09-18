@@ -68,7 +68,7 @@ func (obj TestOrmF123) TableName() string {
 }
 
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
-	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
+	orm := NewORM("root:123456@/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
 	_, err := orm.Exec(`
         CREATE TABLE IF NOT EXISTS test_orm_a123 (
@@ -394,7 +394,40 @@ func TestAutoIncreaseKey(t *testing.T) {
 		}
 	})
 }
-
+func TestOrmSelect(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		testObj := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "test orm",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		orm.Insert(testObj)
+		if testObj.TestId != 1 {
+			t.Fatal("test id should be 1")
+		}
+		orm.Insert(testObj)
+		if testObj.TestId != 2 {
+			t.Fatal("test id should be 2")
+		}
+		orm.Insert(testObj)
+		if testObj.TestId != 3 {
+			t.Fatal("test id should be 3")
+		}
+		var testList []*TestOrmA123
+		start := time.Now()
+		err := orm.Select(&testList, "select * from test_orm_a123 where test_id in (?)", []int{1, 2, 3})
+		t.Logf("elapsed time %v", time.Now().Sub(start))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(testList) != 2 {
+			log.Println(testList[0].TestId)
+			t.Error(len(testList))
+		}
+	})
+}
 func TestOrmHasOneRelation(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		testObj := &TestOrmA123{
