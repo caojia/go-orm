@@ -782,7 +782,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	if len(newArgs) == 0 {
 		newArgs = append(newArgs, args...)
 	}
-	log.Println("new_args", newArgs)
 	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
 	rows, err := query(tdx, queryStr, newArgs...)
