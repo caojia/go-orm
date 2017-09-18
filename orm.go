@@ -1115,7 +1115,7 @@ func insertOrUpdate(tdx Tdx, s interface{}, keys []string) error {
 		keys[k] = str
 		//检查主键的情况，在insert中加入主键
 		if v == pkName {
-			cols = cols + fmt.Sprintf(",%s", pkName)
+			cols += fmt.Sprintf(",%s", pkName)
 			vals += ",?"
 			ifs = append(ifs, pk.Addr().Interface())
 		}
