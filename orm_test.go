@@ -200,7 +200,10 @@ func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
 			EndDate:     time.Now(),
 		}
 		orm.Insert(testObj)
-		orm.InsertDuplicateKeyUpdate(testObj, []string{"TestId"})
+		testObj.OtherId = 1
+		testObj.StartDate = time.Now()
+		err := orm.InsertDuplicateKeyUpdate(testObj, []string{"TestId", "OtherId"})
+		log.Println(err)
 		var loadobj []*TestOrmA123
 		if err := orm.Select(&loadobj, "select * from test_orm_a123 where other_id = ?", 1); err != nil {
 			t.Error(err)
