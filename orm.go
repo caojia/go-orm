@@ -737,9 +737,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			temp = append(temp, t...)
 			index = k + 1
 			newArgs = append(newArgs, temp...)
-			if len(args[k+1:]) > 0 && k == len(args) {
-				newArgs = append(newArgs, args[index:]...)
-			}
 		case []string:
 			queryStr = getNumInStr(len(t), queryStr)
 			if isFirst {
@@ -751,9 +748,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			}
 			index = k + 1
 			newArgs = append(newArgs, temp...)
-			if len(args[k+1:]) > 0 && k == len(args) {
-				newArgs = append(newArgs, args[index:]...)
-			}
 		case []int:
 			queryStr = getNumInStr(len(t), queryStr)
 			if isFirst {
@@ -765,9 +759,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 				temp = append(temp, val)
 			}
 			newArgs = append(newArgs, temp...)
-			if len(args[k+1:]) > 0 && k == len(args) {
-				newArgs = append(newArgs, args[index:]...)
-			}
+
 		case []int64:
 			queryStr = getNumInStr(len(t), queryStr)
 			if isFirst {
@@ -779,12 +771,14 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			}
 			index = k + 1
 			newArgs = append(newArgs, temp...)
-			if len(args[k+1:]) > 0 && k == len(args) {
-				newArgs = append(newArgs, args[index:]...)
-			}
 		}
 		temp = []interface{}{}
 	}
+	//对args的末尾参数进行处理
+	if len(args[index:]) > 0 && index > 0 {
+		newArgs = append(newArgs, args[index:]...)
+	}
+	//对没有数组的参数进行处理
 	if len(newArgs) == 0 {
 		newArgs = append(newArgs, args...)
 	}
