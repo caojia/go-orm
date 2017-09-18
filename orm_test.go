@@ -68,7 +68,7 @@ func (obj TestOrmF123) TableName() string {
 }
 
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
-	orm := NewORM("root:123456@/orm_test?parseTime=true&loc=Local")
+	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
 	_, err := orm.Exec(`
         CREATE TABLE IF NOT EXISTS test_orm_a123 (
@@ -417,12 +417,12 @@ func TestOrmSelect(t *testing.T) {
 		}
 		var testList []*TestOrmA123
 		start := time.Now()
-		err := orm.Select(&testList, "select * from test_orm_a123 where test_id in (?)", []int{1, 2, 3})
+		err := orm.Select(&testList, "select * from test_orm_a123 where other_id > ? and test_id in (?)", 0, []int{1, 2, 3})
 		t.Logf("elapsed time %v", time.Now().Sub(start))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(testList) != 2 {
+		if len(testList) != 3 {
 			log.Println(testList[0].TestId)
 			t.Error(len(testList))
 		}
