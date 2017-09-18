@@ -507,9 +507,10 @@ func selectInt(tdx Tdx, queryStr string, args ...interface{}) (int64, error) {
 	err = rows.Scan(&ret)
 	return ret, err
 }
+
 /**
 判断时候为slice 的指针类型
- */
+*/
 func toSliceType(i interface{}) (reflect.Type, error) {
 	t := reflect.TypeOf(i)
 	if t.Kind() != reflect.Ptr {
@@ -732,7 +733,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	if err != nil {
 		return err
 	}
-	i := 0
 	defer rows.Close()
 
 	keys := make([]interface{}, 0)
@@ -780,7 +780,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			sliceValue.Set(reflect.Append(sliceValue, v.Elem()))
 		}
 	}
-	log.Println(i)
 	if len(keys) > 0 {
 		for _, orCol := range orCols {
 			var sqlQuery string
