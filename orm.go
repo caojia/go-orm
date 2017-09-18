@@ -173,11 +173,14 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 	return true
 }
 
-func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
+/**
+进行日志输出，state表示执行方式，屏蔽掉exec的explain输出，0表示query，1表示exec
+*/
+func logPrint(start time.Time, state int, tdx Tdx, query string, args ...interface{}) {
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
 	duration := time.Since(start)
 	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", query, args)}
-	if sqlLogger.ShowExplain() {
+	if sqlLogger.ShowExplain() && state == 0 {
 		explainStr := fmt.Sprintf("explain %s", query)
 		type explain struct {
 			Id           sql.NullInt64  `json:"id"`
@@ -210,13 +213,23 @@ func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
 	sqlLogger.Log(&sqlLog)
 }
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	defer logPrint(time.Now(), tdx, query, args...)
-	return tdx.Exec(query, args...)
+	start := time.Now()
+	res, err := tdx.Exec(query, args...)
+	if err != nil { //更换处理方式，如果是err就直接打印err日志，不打印其他日志，不用多执行一遍exec
+		return res, err
+	}
+	logPrint(start, 1, tdx, query, args...)
+	return res, err
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	defer logPrint(time.Now(), tdx, queryStr, args...)
-	return tdx.Query(queryStr, args...)
+	start := time.Now()
+	res, err := tdx.Query(queryStr, args...)
+	if err != nil {
+		return res, err
+	}
+	logPrint(start, 0, tdx, queryStr, args...)
+	return res, err
 }
 
 func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
