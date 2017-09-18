@@ -684,6 +684,19 @@ func selectMany(tdx Tdx, s interface{}, query string, args ...interface{}) error
 	return selectManyInternal(tdx, s, true, query, args...)
 }
 
+/**
+替换query 中？？为长度为len的？
+*/
+func getNumInStr(len int, query string) string {
+	str := ""
+	for i := 0; i < len; i++ {
+		str += "?"
+		if i != len-1 {
+			str += ","
+		}
+	}
+	return strings.Replace(query, "??", str, 1)
+}
 func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string, args ...interface{}) error {
 	t, err := toSliceType(s)
 	if err != nil {
@@ -708,25 +721,54 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			hasOrCols = orCols != nil && len(orCols) > 0
 		}
 	}
-	////对args的数组进行处理
-	//for k, v := range args {
-	//	switch t := v.(type) {
-	//	case []string:
-	//		args[k] = strings.Join(t, ",")
-	//	case []int:
-	//		str := []string{}
-	//		for _, value := range t {
-	//			str = append(str, strconv.Itoa(value))
-	//		}
-	//		args[k] = strings.Join(str, ",")
-	//	case []int64:
-	//		str := []string{}
-	//		for _, value := range t {
-	//			str = append(str, strconv.Itoa(int(value)))
-	//		}
-	//		args[k] = strings.Join(str, ",")
-	//	}
-	//}
+	//对args中的数组进行处理
+	temp := make([]interface{}, 0)
+	for k, arg := range args {
+		switch t := arg.(type) {
+		case []interface{}:
+			queryStr = getNumInStr(len(t), queryStr)
+			temp = append(args[:k], t)
+			if len(args[k+1:]) > 0 {
+				args = append(temp, args[k+1:])
+			} else {
+				args = temp
+			}
+		case []string:
+			queryStr = getNumInStr(len(t), queryStr)
+			temp = args[:k]
+			for _, val := range t {
+				temp = append(temp, val)
+			}
+			if len(args[k+1:]) > 0 {
+				args = append(temp, args[k+1:])
+			} else {
+				args = temp
+			}
+		case []int:
+			queryStr = getNumInStr(len(t), queryStr)
+			temp = args[:k]
+			for _, val := range t {
+				temp = append(temp, val)
+			}
+			if len(args[k+1:]) > 0 {
+				args = append(temp, args[k+1:])
+			} else {
+				args = temp
+			}
+		case []int64:
+			queryStr = getNumInStr(len(t), queryStr)
+			temp = args[:k]
+			for _, val := range t {
+				temp = append(temp, val)
+			}
+			if len(args[k+1:]) > 0 {
+				args = append(temp, args[k+1:])
+			} else {
+				args = temp
+			}
+		}
+		temp = []interface{}{}
+	}
 	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
 	rows, err := query(tdx, queryStr, args...)
