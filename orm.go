@@ -723,55 +723,75 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	}
 	//对args中的数组进行处理
 	temp := make([]interface{}, 0)
+	newArgs := make([]interface{}, 0)
+	isFirst := true
+	index := 0
 	for k, arg := range args {
 		switch t := arg.(type) {
 		case []interface{}:
 			queryStr = getNumInStr(len(t), queryStr)
-			temp = append(args[:k], t)
-			if len(args[k+1:]) > 0 {
-				args = append(temp, args[k+1:])
-			} else {
-				args = temp
+			if isFirst {
+				newArgs = append(newArgs, args[:k]...)
+				isFirst = false
+			}
+			temp = append(temp, t...)
+			index = k + 1
+			newArgs = append(newArgs, temp...)
+			if len(args[k+1:]) > 0 && k == len(args) {
+				newArgs = append(newArgs, args[index:]...)
 			}
 		case []string:
 			queryStr = getNumInStr(len(t), queryStr)
-			temp = args[:k]
+			if isFirst {
+				newArgs = append(newArgs, args[:k]...)
+				isFirst = false
+			}
 			for _, val := range t {
 				temp = append(temp, val)
 			}
-			if len(args[k+1:]) > 0 {
-				args = append(temp, args[k+1:])
-			} else {
-				args = temp
+			index = k + 1
+			newArgs = append(newArgs, temp...)
+			if len(args[k+1:]) > 0 && k == len(args) {
+				newArgs = append(newArgs, args[index:]...)
 			}
 		case []int:
 			queryStr = getNumInStr(len(t), queryStr)
-			temp = args[:k]
+			if isFirst {
+				newArgs = append(newArgs, args[:k]...)
+				isFirst = false
+			}
+			index = k + 1
 			for _, val := range t {
 				temp = append(temp, val)
 			}
-			if len(args[k+1:]) > 0 {
-				args = append(temp, args[k+1:])
-			} else {
-				args = temp
+			newArgs = append(newArgs, temp...)
+			if len(args[k+1:]) > 0 && k == len(args) {
+				newArgs = append(newArgs, args[index:]...)
 			}
 		case []int64:
 			queryStr = getNumInStr(len(t), queryStr)
-			temp = args[:k]
+			if isFirst {
+				newArgs = append(newArgs, args[:k]...)
+				isFirst = false
+			}
 			for _, val := range t {
 				temp = append(temp, val)
 			}
-			if len(args[k+1:]) > 0 {
-				args = append(temp, args[k+1:])
-			} else {
-				args = temp
+			index = k + 1
+			newArgs = append(newArgs, temp...)
+			if len(args[k+1:]) > 0 && k == len(args) {
+				newArgs = append(newArgs, args[index:]...)
 			}
 		}
 		temp = []interface{}{}
 	}
+	if len(newArgs) == 0 {
+		newArgs = append(newArgs, args...)
+	}
+	log.Println("new_args", newArgs)
 	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
-	rows, err := query(tdx, queryStr, args...)
+	rows, err := query(tdx, queryStr, newArgs...)
 	if err != nil {
 		return err
 	}

@@ -427,18 +427,33 @@ func TestOrmSelect(t *testing.T) {
 		if testObj.TestId != 2 {
 			t.Fatal("test id should be 2")
 		}
-		orm.Insert(testObj)
-		if testObj.TestId != 3 {
-			t.Fatal("test id should be 3")
+		testObj2 := &TestOrmA123{
+			OtherId:     2,
+			TestOrmDId:  0,
+			Description: "test orm",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
 		}
+		orm.Insert(testObj2)
 		var testList []*TestOrmA123
 		start := time.Now()
-		err := orm.Select(&testList, "select * from test_orm_a123 where other_id > ? and test_id in (??)", 0, []int{1, 2, 3})
+		err := orm.Select(&testList, "select * from test_orm_a123 where  other_id in (??) and test_id in (??)", []int{1, 2}, []int{1, 2, 3})
 		t.Logf("elapsed time %v", time.Now().Sub(start))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(testList) != 3 {
+			log.Println(testList[0].TestId)
+			t.Error(len(testList))
+		}
+		var testList1 []*TestOrmA123
+
+		err = orm.Select(&testList1, "select * from test_orm_a123 where test_id = ?", 1)
+		t.Logf("elapsed time %v", time.Now().Sub(start))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(testList1) != 1 {
 			log.Println(testList[0].TestId)
 			t.Error(len(testList))
 		}
@@ -468,19 +483,19 @@ func TestOrmHasOneRelation(t *testing.T) {
 			t.Fatal("NoAiId should be 2")
 		}
 
-		var testObj2 TestOrmA123
+		var testObj2 []*TestOrmA123
 		start := time.Now()
-		err := orm.Select(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj2.TestId)
+		err := orm.Select(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj.TestId)
 		log.Println(err)
 		t.Logf("elapsed time %v", time.Now().Sub(start))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if testObj2.OrmB == nil {
+		if testObj2[0].OrmB == nil {
 			t.Fatal("should have one ormB")
 		}
-		if testObj2.OrmB.TestId != testObj2.TestId || testObj2.OrmB.Description != testObjB.Description ||
-			testObj2.OrmB.NoAiId != testObjB.NoAiId {
+		if testObj2[0].OrmB.TestId != testObj2[0].TestId || testObj2[0].OrmB.Description != testObjB.Description ||
+			testObj2[0].OrmB.NoAiId != testObjB.NoAiId {
 			t.Fatal("invalid ormb")
 		}
 
