@@ -743,7 +743,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			return err
 		}
 		v := reflect.New(t)
-		log.Println(isPtr)
 		if isPtr {
 			targets := make([]interface{}, len(cols))
 			for k, c := range cols {
