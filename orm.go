@@ -724,8 +724,8 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	//对args中的数组进行处理
 	temp := make([]interface{}, 0)
 	newArgs := make([]interface{}, 0)
-	isFirst := true
-	index := 0
+	isFirst := true //是否是第一次碰到数组，加载数组前面的arg
+	index := 0      //args数组的中的指针
 	for k, arg := range args {
 		switch t := arg.(type) {
 		case []interface{}:
@@ -750,12 +750,12 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			newArgs = append(newArgs, temp...)
 		case []int:
 			queryStr = getNumInStr(len(t), queryStr)
-			if isFirst {
+			if isFirst { //加载数组前面的参数
 				newArgs = append(newArgs, args[:k]...)
 				isFirst = false
 			}
 			index = k + 1
-			for _, val := range t {
+			for _, val := range t { //遍历数组，拉平参数
 				temp = append(temp, val)
 			}
 			newArgs = append(newArgs, temp...)
