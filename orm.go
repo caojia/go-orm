@@ -170,47 +170,49 @@ func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
 }
 
 func (n *VerboseSqlLogger) ShowExplain() bool {
-	return false
+	return true
 }
 
 /**
 进行日志输出，isQuery，屏蔽掉exec的explain输出，0表示query，1表示exec
 */
-func logPrint(start time.Time, isQuery int, tdx Tdx, query string, args ...interface{}) {
-	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
-	duration := time.Since(start)
-	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", query, args)}
-	if sqlLogger.ShowExplain() && isQuery == 0 {
-		explainStr := fmt.Sprintf("explain %s", query)
-		type explain struct {
-			Id           sql.NullInt64  `json:"id"`
-			SelectType   sql.NullString `json:"select_type"`
-			Partitions   sql.NullString `json:"partitions"`
-			PossibleKeys sql.NullString `json:"possible_keys"`
-			KeyLen       sql.NullInt64  `json:"key_len"`
-			Filtered     sql.NullString `json:"filtered"`
-			Table        sql.NullString `json:"table"`
-			Type         sql.NullString `json:"type"`
-			Key          sql.NullString `json:"key"`
-			Ref          sql.NullString `json:"ref"`
-			Rows         sql.NullInt64  `json:"rows"`
-			Extra        sql.NullString `json:"extra"`
-		}
-		rows, err := tdx.Query(explainStr, args...)
-		if err == nil {
-			defer rows.Close()
-			if rows.Next() {
-				e := explain{}
-				cols, err := rows.Columns()
-				err = reflectStruct(&e, cols, rows)
-				if err != nil {
-					log.Println("reflect err", err)
-				}
-				sqlLog.Explain = &Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
-			}
-		}
+func logPrint(log SqlLogger, exp *Explain, duration time.Duration, queryStr string, args ...interface{}) {
+	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
+	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", queryStr, args), Explain: exp}
+	log.Log(&sqlLog)
+}
+func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
+	explainStr := fmt.Sprintf("explain %s", query)
+	type explain struct {
+		Id           sql.NullInt64  `json:"id"`
+		SelectType   sql.NullString `json:"select_type"`
+		Partitions   sql.NullString `json:"partitions"`
+		PossibleKeys sql.NullString `json:"possible_keys"`
+		KeyLen       sql.NullInt64  `json:"key_len"`
+		Filtered     sql.NullString `json:"filtered"`
+		Table        sql.NullString `json:"table"`
+		Type         sql.NullString `json:"type"`
+		Key          sql.NullString `json:"key"`
+		Ref          sql.NullString `json:"ref"`
+		Rows         sql.NullInt64  `json:"rows"`
+		Extra        sql.NullString `json:"extra"`
 	}
-	sqlLogger.Log(&sqlLog)
+	rows, err := tdx.Query(explainStr, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var exp Explain
+	if rows.Next() {
+		e := explain{}
+		cols, err := rows.Columns()
+		err = reflectStruct(&e, cols, rows)
+		if err != nil {
+			log.Println("reflect err", err)
+		}
+		exp = Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
+	}
+	return &exp, nil
 }
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 	start := time.Now()
@@ -218,17 +220,25 @@ func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 	if err != nil { //更换处理方式，如果是err就直接打印err日志，不打印其他日志，不用多执行一遍exec
 		return res, err
 	}
-	logPrint(start, 1, tdx, query, args...)
+	logPrint(sqlLogger, nil, time.Since(start), query, args...)
 	return res, err
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
+	var exp = &Explain{}
+	var err error
+	if sqlLogger.ShowExplain() {
+		exp, err = doExplain(tdx, queryStr, args...)
+		if err != nil {
+			return nil, err
+		}
+	}
 	start := time.Now()
 	res, err := tdx.Query(queryStr, args...)
 	if err != nil {
 		return res, err
 	}
-	logPrint(start, 0, tdx, queryStr, args...)
+	logPrint(sqlLogger, exp, time.Since(start), queryStr, args...)
 	return res, err
 }
 
