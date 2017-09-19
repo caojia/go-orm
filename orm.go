@@ -174,13 +174,13 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 }
 
 /**
-进行日志输出，state表示执行方式，屏蔽掉exec的explain输出，0表示query，1表示exec
+进行日志输出，isQuery，屏蔽掉exec的explain输出，0表示query，1表示exec
 */
-func logPrint(start time.Time, state int, tdx Tdx, query string, args ...interface{}) {
+func logPrint(start time.Time, isQuery int, tdx Tdx, query string, args ...interface{}) {
 	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
 	duration := time.Since(start)
 	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", query, args)}
-	if sqlLogger.ShowExplain() && state == 0 {
+	if sqlLogger.ShowExplain() && isQuery == 0 {
 		explainStr := fmt.Sprintf("explain %s", query)
 		type explain struct {
 			Id           sql.NullInt64  `json:"id"`
