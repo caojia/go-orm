@@ -150,13 +150,13 @@ type SqlLog struct {
 	Explain  *Explain      `json:"explain,omitempty"`
 }
 type Explain struct {
-	Table  string `json:"table"`
-	Type   string `json:"type"`
-	Key    string `json:"key"`
-	KeyLen int64  `json:"key_len"`
-	Ref    string `json:"ref"`
-	Rows   int64  `json:"rows"`
-	Extra  string `json:"extra"`
+	Table  string `json:"table,omitempty"`
+	Type   string `json:"type,omitempty"`
+	Key    string `json:"key,omitempty"`
+	KeyLen int64  `json:"key_len,omitempty"`
+	Ref    string `json:"ref,omitempty"`
+	Rows   int64  `json:"rows,omitempty"`
+	Extra  string `json:"extra,omitempty"`
 }
 type SqlLogger interface {
 	Log(sqlLog *SqlLog)
@@ -170,7 +170,7 @@ func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
 }
 
 func (n *VerboseSqlLogger) ShowExplain() bool {
-	return true
+	return false
 }
 
 /**
@@ -179,6 +179,7 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 func logPrint(log SqlLogger, exp *Explain, duration time.Duration, queryStr string, args ...interface{}) {
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
 	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", queryStr, args), Explain: exp}
+
 	log.Log(&sqlLog)
 }
 func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
@@ -225,7 +226,7 @@ func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	var exp = &Explain{}
+	exp := &Explain{}
 	var err error
 	if sqlLogger.ShowExplain() {
 		exp, err = doExplain(tdx, queryStr, args...)
