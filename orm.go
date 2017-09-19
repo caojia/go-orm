@@ -150,13 +150,13 @@ type SqlLog struct {
 	Explain  *Explain      `json:"explain,omitempty"`
 }
 type Explain struct {
-	Table  string `json:"table"`
-	Type   string `json:"type"`
-	Key    string `json:"key"`
-	KeyLen int64  `json:"key_len"`
-	Ref    string `json:"ref"`
-	Rows   int64  `json:"rows"`
-	Extra  string `json:"extra"`
+	Table  string `json:"table,omitempty"`
+	Type   string `json:"type,omitempty"`
+	Key    string `json:"key,omitempty"`
+	KeyLen int64  `json:"key_len,omitempty"`
+	Ref    string `json:"ref,omitempty"`
+	Rows   int64  `json:"rows,omitempty"`
+	Extra  string `json:"extra,omitempty"`
 }
 type SqlLogger interface {
 	Log(sqlLog *SqlLog)
@@ -173,52 +173,74 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 	return false
 }
 
-func logPrint(start time.Time, tdx Tdx, query string, args ...interface{}) {
-	query = regexp.MustCompile("\\s+").ReplaceAllString(query, " ")
-	duration := time.Since(start)
-	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", query, args)}
-	if sqlLogger.ShowExplain() {
-		explainStr := fmt.Sprintf("explain %s", query)
-		type explain struct {
-			Id           sql.NullInt64  `json:"id"`
-			SelectType   sql.NullString `json:"select_type"`
-			Partitions   sql.NullString `json:"partitions"`
-			PossibleKeys sql.NullString `json:"possible_keys"`
-			KeyLen       sql.NullInt64  `json:"key_len"`
-			Filtered     sql.NullString `json:"filtered"`
-			Table        sql.NullString `json:"table"`
-			Type         sql.NullString `json:"type"`
-			Key          sql.NullString `json:"key"`
-			Ref          sql.NullString `json:"ref"`
-			Rows         sql.NullInt64  `json:"rows"`
-			Extra        sql.NullString `json:"extra"`
-		}
-		rows, err := tdx.Query(explainStr, args...)
-		if err == nil {
-			defer rows.Close()
-			if rows.Next() {
-				e := explain{}
-				cols, err := rows.Columns()
-				err = reflectStruct(&e, cols, rows)
-				if err != nil {
-					log.Println("reflect err", err)
-				}
-				sqlLog.Explain = &Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
-			}
-		} else {
-			log.Println("explain query err", err)
-		}
+/**
+进行日志输出，isQuery，屏蔽掉exec的explain输出，0表示query，1表示exec
+*/
+func logPrint(log SqlLogger, exp *Explain, duration time.Duration, queryStr string, args ...interface{}) {
+	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
+	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", queryStr, args), Explain: exp}
+
+	log.Log(&sqlLog)
+}
+func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
+	explainStr := fmt.Sprintf("explain %s", query)
+	type explain struct {
+		Id           sql.NullInt64  `json:"id"`
+		SelectType   sql.NullString `json:"select_type"`
+		Partitions   sql.NullString `json:"partitions"`
+		PossibleKeys sql.NullString `json:"possible_keys"`
+		KeyLen       sql.NullInt64  `json:"key_len"`
+		Filtered     sql.NullString `json:"filtered"`
+		Table        sql.NullString `json:"table"`
+		Type         sql.NullString `json:"type"`
+		Key          sql.NullString `json:"key"`
+		Ref          sql.NullString `json:"ref"`
+		Rows         sql.NullInt64  `json:"rows"`
+		Extra        sql.NullString `json:"extra"`
 	}
-	sqlLogger.Log(&sqlLog)
+	rows, err := tdx.Query(explainStr, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var exp Explain
+	if rows.Next() {
+		e := explain{}
+		cols, err := rows.Columns()
+		err = reflectStruct(&e, cols, rows)
+		if err != nil {
+			log.Println("reflect err", err)
+		}
+		exp = Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
+	}
+	return &exp, nil
 }
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
-	defer logPrint(time.Now(), tdx, query, args...)
-	return tdx.Exec(query, args...)
+	start := time.Now()
+	res, err := tdx.Exec(query, args...)
+	if err != nil { //更换处理方式，如果是err就直接打印err日志，不打印其他日志，不用多执行一遍exec
+		return res, err
+	}
+	logPrint(sqlLogger, nil, time.Since(start), query, args...)
+	return res, err
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
-	defer logPrint(time.Now(), tdx, queryStr, args...)
-	return tdx.Query(queryStr, args...)
+	exp := &Explain{}
+	var err error
+	if sqlLogger.ShowExplain() {
+		exp, err = doExplain(tdx, queryStr, args...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	start := time.Now()
+	res, err := tdx.Query(queryStr, args...)
+	if err != nil {
+		return res, err
+	}
+	logPrint(sqlLogger, exp, time.Since(start), queryStr, args...)
+	return res, err
 }
 
 func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
@@ -508,6 +530,9 @@ func selectInt(tdx Tdx, queryStr string, args ...interface{}) (int64, error) {
 	return ret, err
 }
 
+/**
+判断时候为slice 的指针类型
+*/
 func toSliceType(i interface{}) (reflect.Type, error) {
 	t := reflect.TypeOf(i)
 	if t.Kind() != reflect.Ptr {
@@ -681,6 +706,19 @@ func selectMany(tdx Tdx, s interface{}, query string, args ...interface{}) error
 	return selectManyInternal(tdx, s, true, query, args...)
 }
 
+/**
+替换query 中？？为长度为len的？
+*/
+func getNumInStr(len int, query string) string {
+	str := ""
+	for i := 0; i < len; i++ {
+		str += "?"
+		if i != len-1 {
+			str += ","
+		}
+	}
+	return strings.Replace(query, "??", str, 1)
+}
 func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string, args ...interface{}) error {
 	t, err := toSliceType(s)
 	if err != nil {
@@ -705,29 +743,23 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			hasOrCols = orCols != nil && len(orCols) > 0
 		}
 	}
-	//对args的数组进行处理
-	//for k,v:= range args {
-	//	switch t := v.(type) {
-	//	case []string:
-	//		args[k] = strings.Join(t, ",")
-	//	case []int:
-	//		str := []string{}
-	//		for _, value := range t {
-	//			str = append(str, strconv.Itoa(value))
-	//		}
-	//		args[k] = strings.Join(str, ",")
-	//	case []int64:
-	//		str := []string{}
-	//		for _, value := range t {
-	//			str = append(str, strconv.Itoa(int(value)))
-	//		}
-	//		args[k] = strings.Join(str, ",")
-	//	default:
-	//	}
-	//}
+	//对args中的数组进行处理
+	newArgs := make([]interface{}, 0)
+	for _, arg := range args {
+		switch reflect.TypeOf(arg).Kind() {
+		case reflect.Slice:
+			s := reflect.ValueOf(arg)
+			queryStr = getNumInStr(s.Len(), queryStr)
+			for i := 0; i < s.Len(); i++ {
+				newArgs = append(newArgs, s.Index(i).Interface())
+			}
+		default:
+			newArgs = append(newArgs, arg)
+		}
+	}
 	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
-	rows, err := query(tdx, queryStr, args...)
+	rows, err := query(tdx, queryStr, newArgs...)
 	if err != nil {
 		return err
 	}
@@ -910,6 +942,7 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 	}
 	//通过cols获取struct中的值
 	for _, value := range cols {
+		value = colName2FieldName(value)
 		r := v.FieldByName(value).Addr().Interface()
 		if v.FieldByName(value).Type().String() == "time.Time" {
 			if r.(*time.Time).IsZero() {
@@ -1063,6 +1096,35 @@ func insert(tdx Tdx, s interface{}) error {
 	return nil
 }
 
+//更新或者插入，on duplicate key
+func insertOrUpdate(tdx Tdx, s interface{}, keys []string) error {
+	cols, vals, ifs, pk, isAi, pkName := columnsByStruct(s)
+	for k, v := range keys {
+		v = fieldName2ColName(v)
+		str := fmt.Sprintf("%s=values(%s)", v, v)
+		keys[k] = str
+		//检查主键的情况，在insert中加入主键
+		if v == pkName {
+			cols += fmt.Sprintf(",%s", pkName)
+			vals += ",?"
+			ifs = append(ifs, pk.Addr().Interface())
+		}
+	}
+	q := fmt.Sprintf("insert into %s (%s) values (%s) on duplicate key update %s", getTableName(s), cols, vals, strings.Join(keys, ","))
+	ret, err := exec(tdx, q, ifs...)
+	if err != nil {
+		return err
+	}
+	if isAi {
+		lid, err := ret.LastInsertId()
+		if err != nil {
+			return err
+		}
+		pk.SetInt(lid)
+	}
+	return nil
+}
+
 //通过传递需要更新的字段,去更新部分字段
 func updateFieldsByPK(tdx Tdx, s interface{}, cols []string) error {
 	ifs, pk, _, pkName := columnsByStructFields(s, cols)
@@ -1129,6 +1191,7 @@ type ORMer interface {
 	UpdateByPK(interface{}) error
 	UpdateFieldsByPK(interface{}, []string) error
 	Insert(interface{}) error
+	InsertOrUpdate(interface{}, []string) error
 	InsertBatch([]interface{}) error
 	Exec(string, ...interface{}) (sql.Result, error)
 	Query(string, ...interface{}) (*sql.Rows, error)
@@ -1256,6 +1319,10 @@ func (o *ORM) Insert(s interface{}) error {
 
 func (o *ORM) InsertBatch(s []interface{}) error {
 	return insertBatch(o.db, s)
+}
+
+func (o *ORM) InsertOrUpdate(s interface{}, keys []string) error {
+	return insertOrUpdate(o.db, s, keys)
 }
 
 func (o *ORM) ExecWithRowAffectCheck(n int64, query string, args ...interface{}) error {

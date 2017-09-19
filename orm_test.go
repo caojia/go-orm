@@ -190,6 +190,44 @@ func TestORMUpdate(t *testing.T) {
 		}
 	})
 }
+func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		testObj1 := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		orm.Insert(testObj1)
+		if testObj1.TestId != 1 {
+			t.Fatal("test id should be 1")
+		}
+		testObj1.TestId = 1
+		testObj1.StartDate = time.Now()
+		err := orm.InsertOrUpdate(testObj1, []string{"TestId"})
+		if err != nil {
+			t.Error(err)
+		}
+		testObj2 := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		err = orm.Insert(testObj2)
+		if err != nil {
+			t.Error(err)
+		}
+		var loadobj []*TestOrmA123
+		if err := orm.Select(&loadobj, "select * from test_orm_a123 where other_id = ?", 1); err != nil {
+			t.Error(err)
+		} else if len(loadobj) != 2 {
+			t.Error(len(loadobj))
+		}
+	})
+}
 func TestORMUpdateFieldsByPK(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		testObj := &TestOrmA123{
@@ -202,7 +240,7 @@ func TestORMUpdateFieldsByPK(t *testing.T) {
 		orm.Insert(testObj)
 		testObj.Description = "update"
 		testObj.OtherId = 1000
-		orm.UpdateFieldsByPK(testObj, []string{"Description", "OtherId"})
+		orm.UpdateFieldsByPK(testObj, []string{"description", "OtherId"})
 		var loadedObj TestOrmA123
 		if err := orm.SelectByPK(&loadedObj, testObj.TestId); err != nil {
 			t.Error(err)
@@ -222,17 +260,17 @@ func TestQueryRawSetAndQueryRaw(t *testing.T) {
 		orm.Exec("delete from test_orm_a123")
 		result, _ := orm.SelectRawSet("select * from test_orm_a123", map[string]string{})
 		if len(result) != 0 {
-			t.Fatalf("should no result", result)
+			t.Fatalf("should no result%v", result)
 		}
 		_, data, _ := orm.SelectRaw("select * from test_orm_a123")
 		if len(data) != 0 {
-			t.Fatalf("should no result", data)
+			t.Fatalf("should no result%v", data)
 		}
 
 		p1 := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
-			Description: "test orm 1测试",
+			Description: "test orm 1",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -240,7 +278,7 @@ func TestQueryRawSetAndQueryRaw(t *testing.T) {
 		p2 := &TestOrmA123{
 			OtherId:     10,
 			TestOrmDId:  0,
-			Description: "test orm 2测试",
+			Description: "test orm 2",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -266,7 +304,7 @@ func TestExecParam(t *testing.T) {
 		testObj := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
-			Description: "test orm 1测试",
+			Description: "test orm 1",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -274,7 +312,7 @@ func TestExecParam(t *testing.T) {
 		orm.Insert(&TestOrmA123{
 			OtherId:     10,
 			TestOrmDId:  0,
-			Description: "test orm 2测试",
+			Description: "test orm 2",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		})
@@ -282,7 +320,7 @@ func TestExecParam(t *testing.T) {
 		var paramMap map[string]interface{} = map[string]interface{}{
 			"otherId":     2,
 			"id":          testObj.TestId,
-			"description": "lala安的",
+			"description": "lala",
 		}
 		_, err := orm.ExecWithParam("update "+testTableName+
 			" set other_id = #{otherId}, description = #{description} where test_id = #{id}", paramMap)
@@ -315,8 +353,8 @@ func TestExecParam(t *testing.T) {
 			TestId:      testObj.TestId,
 			TestOrmDId:  0,
 			OtherId:     5,
-			Description: "阿达",
-			Name:        sql.NullString{"O啊", true},
+			Description: "ad",
+			Name:        sql.NullString{"Oa", true},
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -353,7 +391,7 @@ func TestAutoIncreaseKey(t *testing.T) {
 		testObj := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
-			Description: "test orm 1测试",
+			Description: "test orm",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -372,13 +410,61 @@ func TestAutoIncreaseKey(t *testing.T) {
 		}
 	})
 }
+func TestOrmSelect(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		testObj := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "test orm",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		orm.Insert(testObj)
+		if testObj.TestId != 1 {
+			t.Fatal("test id should be 1")
+		}
+		orm.Insert(testObj)
+		if testObj.TestId != 2 {
+			t.Fatal("test id should be 2")
+		}
+		testObj2 := &TestOrmA123{
+			OtherId:     2,
+			TestOrmDId:  0,
+			Description: "test orm",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		orm.Insert(testObj2)
+		var testList []*TestOrmA123
+		start := time.Now()
+		err := orm.Select(&testList, "select * from test_orm_a123 where  other_id in (??) and test_id in (??)", []int{1, 2}, []int{1, 2, 3})
+		t.Logf("elapsed time %v", time.Now().Sub(start))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(testList) != 3 {
+			log.Println(testList[0].TestId)
+			t.Error(len(testList))
+		}
+		var testList1 []*TestOrmA123
 
+		err = orm.Select(&testList1, "select * from test_orm_a123 where test_id = ?", 1)
+		t.Logf("elapsed time %v", time.Now().Sub(start))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(testList1) != 1 {
+			log.Println(testList[0].TestId)
+			t.Error(len(testList))
+		}
+	})
+}
 func TestOrmHasOneRelation(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		testObj := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
-			Description: "test orm 1测试",
+			Description: "test orm",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -397,18 +483,19 @@ func TestOrmHasOneRelation(t *testing.T) {
 			t.Fatal("NoAiId should be 2")
 		}
 
-		var testObj2 TestOrmA123
+		var testObj2 []*TestOrmA123
 		start := time.Now()
-		err := orm.SelectOne(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj.TestId)
+		err := orm.Select(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj.TestId)
+		log.Println(err)
 		t.Logf("elapsed time %v", time.Now().Sub(start))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if testObj2.OrmB == nil {
+		if testObj2[0].OrmB == nil {
 			t.Fatal("should have one ormB")
 		}
-		if testObj2.OrmB.TestId != testObj2.TestId || testObj2.OrmB.Description != testObjB.Description ||
-			testObj2.OrmB.NoAiId != testObjB.NoAiId {
+		if testObj2[0].OrmB.TestId != testObj2[0].TestId || testObj2[0].OrmB.Description != testObjB.Description ||
+			testObj2[0].OrmB.NoAiId != testObjB.NoAiId {
 			t.Fatal("invalid ormb")
 		}
 
@@ -487,7 +574,6 @@ func TestOrmHasOneRelation(t *testing.T) {
 				}
 			}
 		}
-
 		f := func(ot *ORMTran) error {
 			err = ot.SelectOne(&loadOrmA1, "select * from test_orm_a123 WHERE test_id = ?", testObj.TestId)
 			if err != nil {
@@ -516,20 +602,25 @@ func TestOrmBelongsToRelation(t *testing.T) {
 		testObjD := &TestOrmD222{
 			Name: "test d",
 		}
-		orm.Insert(testObjD)
+		err := orm.Insert(testObjD)
+		if err != nil {
+			t.Error(err)
+		}
 		if testObjD.TestOrmDId != 1 {
 			t.Fatal("test d id should be 1")
 		}
 
 		testObj := &TestOrmA123{
 			OtherId:     1,
-			Description: "test orm 1测试",
+			Description: "test orm 1",
 			TestOrmDId:  testObjD.TestOrmDId,
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
-		orm.Insert(testObj)
-
+		err = orm.Insert(testObj)
+		if err != nil {
+			t.Error(err)
+		}
 		if testObj.TestId != 1 {
 			t.Fatal("test id should be 1")
 		}
@@ -546,7 +637,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 
 		var testObj2 TestOrmA123
 		start := time.Now()
-		err := orm.SelectOne(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj.TestId)
+		err = orm.SelectOne(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj.TestId)
 		t.Logf("elapsed time %v", time.Now().Sub(start))
 		if err != nil {
 			t.Fatal(err)
@@ -657,6 +748,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 		f := func(ot *ORMTran) error {
 			err = ot.SelectOne(&loadOrmA1, "select * from test_orm_a123 WHERE test_id = ?", testObj.TestId)
 			if err != nil {
+				log.Println(err)
 				t.Fatal(err)
 			}
 			err = orm.Select(&sliceRes, "SELECT * FROM test_orm_a123")
@@ -699,7 +791,7 @@ func TestPanicHandlingInTransaction(t *testing.T) {
 		testObj := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
-			Description: "test orm 1测试",
+			Description: "test orm 1",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
