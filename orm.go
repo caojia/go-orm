@@ -170,7 +170,7 @@ func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
 }
 
 func (n *VerboseSqlLogger) ShowExplain() bool {
-	return true
+	return false
 }
 
 /**
@@ -733,65 +733,18 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 		}
 	}
 	//对args中的数组进行处理
-	temp := make([]interface{}, 0)
 	newArgs := make([]interface{}, 0)
-	isFirst := true //是否是第一次碰到数组，加载数组前面的arg
-	index := 0      //args数组的中的指针
-	for k, arg := range args {
-		switch t := arg.(type) {
-		case []interface{}:
-			queryStr = getNumInStr(len(t), queryStr)
-			if isFirst {
-				newArgs = append(newArgs, args[:k]...)
-				isFirst = false
+	for _, arg := range args {
+		switch reflect.TypeOf(arg).Kind() {
+		case reflect.Slice:
+			s := reflect.ValueOf(arg)
+			queryStr = getNumInStr(s.Len(), queryStr)
+			for i := 0; i < s.Len(); i++ {
+				newArgs = append(newArgs, s.Index(i).Interface())
 			}
-			temp = append(temp, t...)
-			index = k + 1
-			newArgs = append(newArgs, temp...)
-		case []string:
-			queryStr = getNumInStr(len(t), queryStr)
-			if isFirst {
-				newArgs = append(newArgs, args[:k]...)
-				isFirst = false
-			}
-			for _, val := range t {
-				temp = append(temp, val)
-			}
-			index = k + 1
-			newArgs = append(newArgs, temp...)
-		case []int:
-			queryStr = getNumInStr(len(t), queryStr)
-			if isFirst { //加载数组前面的参数
-				newArgs = append(newArgs, args[:k]...)
-				isFirst = false
-			}
-			index = k + 1
-			for _, val := range t { //遍历数组，拉平参数
-				temp = append(temp, val)
-			}
-			newArgs = append(newArgs, temp...)
-
-		case []int64:
-			queryStr = getNumInStr(len(t), queryStr)
-			if isFirst {
-				newArgs = append(newArgs, args[:k]...)
-				isFirst = false
-			}
-			for _, val := range t {
-				temp = append(temp, val)
-			}
-			index = k + 1
-			newArgs = append(newArgs, temp...)
+		default:
+			newArgs = append(newArgs, arg)
 		}
-		temp = []interface{}{}
-	}
-	//对args的末尾参数进行处理
-	if len(args[index:]) > 0 && index > 0 {
-		newArgs = append(newArgs, args[index:]...)
-	}
-	//对没有数组的参数进行处理
-	if len(newArgs) == 0 {
-		newArgs = append(newArgs, args...)
 	}
 	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
@@ -1132,6 +1085,7 @@ func insert(tdx Tdx, s interface{}) error {
 	return nil
 }
 
+//更新或者插入，on duplicate key
 func insertOrUpdate(tdx Tdx, s interface{}, keys []string) error {
 	cols, vals, ifs, pk, isAi, pkName := columnsByStruct(s)
 	for k, v := range keys {
