@@ -27,14 +27,14 @@ type TestOrmA123 struct {
 type TestOrmB999 struct {
 	NoAiId      int64 `pk:"true"`
 	Description string
-	TestId      int64
+	TestID      int64     `db:"test_id"`
 	CreatedAt   time.Time `ignore:"true"`
 	UpdatedAt   time.Time `ignore:"true"`
 }
 
 type TestOrmC111 struct {
 	TestOrmCId int64 `pk:"true" ai:"true"`
-	TestId     int64
+	TestID     int64 `db:"test_id"`
 	Name       string
 }
 
@@ -68,7 +68,7 @@ func (obj TestOrmF123) TableName() string {
 }
 
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
-	orm := NewORM("root:123456@/orm_test?parseTime=true&loc=Local")
+	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
 	_, err := orm.Exec(`
         CREATE TABLE IF NOT EXISTS test_orm_a123 (
@@ -490,17 +490,20 @@ func TestOrmHasOneRelation(t *testing.T) {
 
 		testObjB := &TestOrmB999{
 			NoAiId:      2,
-			TestId:      testObj.TestID,
+			TestID:      testObj.TestID,
 			Description: "aaa",
 		}
-		orm.Insert(testObjB)
+		err := orm.Insert(testObjB)
 		if testObjB.NoAiId != 2 {
 			t.Fatal("NoAiId should be 2")
+		}
+		if err != nil {
+			t.Error(err)
 		}
 
 		var testObj2 []*TestOrmA123
 		start := time.Now()
-		err := orm.Select(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj.TestID)
+		err = orm.Select(&testObj2, "SELECT * FROM test_orm_a123 WHERE test_id = ?", testObj.TestID)
 		t.Logf("elapsed time %v", time.Now().Sub(start))
 		if err != nil {
 			t.Fatal(err)
@@ -508,7 +511,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 		if testObj2[0].OrmB == nil {
 			t.Fatal("should have one ormB")
 		}
-		if testObj2[0].OrmB.TestId != testObj2[0].TestID || testObj2[0].OrmB.Description != testObjB.Description ||
+		if testObj2[0].OrmB.TestID != testObj2[0].TestID || testObj2[0].OrmB.Description != testObjB.Description ||
 			testObj2[0].OrmB.NoAiId != testObjB.NoAiId {
 			t.Fatal("invalid ormb")
 		}
@@ -521,7 +524,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 		}
 		orm.Insert(objA2)
 		orm.Insert(&TestOrmB999{
-			TestId:      objA2.TestID,
+			TestID:      objA2.TestID,
 			NoAiId:      3,
 			Description: "ormb3",
 		})
@@ -540,7 +543,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 			for i := 0; i < count; i++ {
 				orm.Insert(&TestOrmC111{
 					Name:   fmt.Sprintf("%d_orm_c_%d", testId, i),
-					TestId: testId,
+					TestID: testId,
 				})
 			}
 		}
@@ -556,7 +559,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 		}
 		for _, c := range loadOrmA1.OrmCs {
 			//t.Log(c)
-			if c.TestId != testObj.TestID {
+			if c.TestID != testObj.TestID {
 				t.Fatal("incorrect result")
 			}
 		}
@@ -583,7 +586,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 		for _, ormA := range sliceRes {
 			for _, c := range ormA.OrmCs {
 				//t.Log(c, ormA.TestId)
-				if c.TestId != ormA.TestID {
+				if c.TestID != ormA.TestID {
 					t.Fatal("incorrect result")
 				}
 			}
@@ -600,7 +603,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 			for _, ormA := range sliceRes {
 				for _, c := range ormA.OrmCs {
 					//t.Log(c, ormA.TestId)
-					if c.TestId != ormA.TestID {
+					if c.TestID != ormA.TestID {
 						t.Fatal("incorrect result")
 					}
 				}
@@ -641,7 +644,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 
 		testObjB := &TestOrmB999{
 			NoAiId:      2,
-			TestId:      testObj.TestID,
+			TestID:      testObj.TestID,
 			Description: "aaa",
 		}
 		orm.Insert(testObjB)
@@ -662,7 +665,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 		if testObj2.OrmD == nil {
 			t.Fatal("should have one ormd")
 		}
-		if testObj2.OrmB.TestId != testObj2.TestID || testObj2.OrmB.Description != testObjB.Description ||
+		if testObj2.OrmB.TestID != testObj2.TestID || testObj2.OrmB.Description != testObjB.Description ||
 			testObj2.OrmB.NoAiId != testObjB.NoAiId {
 			t.Fatal("invalid ormb")
 		}
@@ -683,7 +686,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 		}
 		orm.Insert(objA2)
 		orm.Insert(&TestOrmB999{
-			TestId:      objA2.TestID,
+			TestID:      objA2.TestID,
 			NoAiId:      3,
 			Description: "ormb3",
 		})
@@ -702,7 +705,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 			for i := 0; i < count; i++ {
 				orm.Insert(&TestOrmC111{
 					Name:   fmt.Sprintf("%d_orm_c_%d", testId, i),
-					TestId: testId,
+					TestID: testId,
 				})
 			}
 		}
@@ -718,7 +721,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 		}
 		for _, c := range loadOrmA1.OrmCs {
 			//t.Log(c)
-			if c.TestId != testObj.TestID {
+			if c.TestID != testObj.TestID {
 				t.Fatal("incorrect result")
 			}
 		}
@@ -734,13 +737,13 @@ func TestOrmBelongsToRelation(t *testing.T) {
 			t.Fatal("incorrect result")
 		}
 		if sliceRes[0].OrmB == nil || sliceRes[1].OrmB == nil || sliceRes[2].OrmB != nil {
-			if sliceRes[0] == nil{
+			if sliceRes[0] == nil {
 				t.Error("one nil")
 			}
-			if sliceRes[1] == nil{
+			if sliceRes[1] == nil {
 				t.Error("two err")
 			}
-			if sliceRes[2] !=nil {
+			if sliceRes[2] != nil {
 				t.Error("a")
 			}
 			t.Fatal("should have orm b on first 2 result")
@@ -762,7 +765,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 		for _, ormA := range sliceRes {
 			for _, c := range ormA.OrmCs {
 				//t.Log(c, ormA.TestId)
-				if c.TestId != ormA.TestID {
+				if c.TestID != ormA.TestID {
 					t.Fatal("incorrect result")
 				}
 			}
@@ -781,7 +784,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 			for _, ormA := range sliceRes {
 				for _, c := range ormA.OrmCs {
 					//t.Log(c, ormA.TestId)
-					if c.TestId != ormA.TestID {
+					if c.TestID != ormA.TestID {
 						t.Fatal("incorrect result")
 					}
 				}
@@ -821,7 +824,7 @@ func TestPanicHandlingInTransaction(t *testing.T) {
 		orm.Insert(testObj)
 		testObjB := &TestOrmB999{
 			NoAiId:      2,
-			TestId:      testObj.TestID,
+			TestID:      testObj.TestID,
 			Description: "aaa",
 		}
 		orm.Insert(testObjB)
@@ -837,7 +840,7 @@ func TestPanicHandlingInTransaction(t *testing.T) {
 			t.Fatal("incorrect description")
 		}
 		var objB TestOrmB999
-		orm.SelectOne(&objB, "SELECT * FROM test_orm_b999 WHERE test_id = ?", testObjB.TestId)
+		orm.SelectOne(&objB, "SELECT * FROM test_orm_b999 WHERE test_id = ?", testObjB.TestID)
 		if objB.Description != "b" {
 			t.Fatal("incorrect description")
 		}
@@ -863,7 +866,7 @@ func TestPanicHandlingInTransaction(t *testing.T) {
 		if objA.Description != "test" {
 			t.Fatal("incorrect description")
 		}
-		orm.SelectOne(&objB, "SELECT * FROM test_orm_b999 WHERE test_id = ?", testObjB.TestId)
+		orm.SelectOne(&objB, "SELECT * FROM test_orm_b999 WHERE test_id = ?", testObjB.TestID)
 		if objB.Description != "b" {
 			t.Fatal("incorrect description")
 		}
@@ -883,7 +886,7 @@ func TestPanicHandlingInTransaction(t *testing.T) {
 		if objA.Description != "test" {
 			t.Fatal("incorrect description")
 		}
-		orm.SelectOne(&objB, "SELECT * FROM test_orm_b999 WHERE test_id = ?", testObjB.TestId)
+		orm.SelectOne(&objB, "SELECT * FROM test_orm_b999 WHERE test_id = ?", testObjB.TestID)
 		if objB.Description != "b" {
 			t.Fatal("incorrect description")
 		}
@@ -899,7 +902,7 @@ func TestPanicHandlingInTransaction(t *testing.T) {
 		if objA.Description != "test3" {
 			t.Fatal("incorrect description")
 		}
-		orm.SelectOne(&objB, "SELECT * FROM test_orm_b999 WHERE test_id = ?", testObjB.TestId)
+		orm.SelectOne(&objB, "SELECT * FROM test_orm_b999 WHERE test_id = ?", testObjB.TestID)
 		if objB.Description != "b3" {
 			t.Fatal("incorrect description")
 		}

@@ -751,7 +751,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 		return errors.New("slice elements type " + t.Kind().String() + " not supported")
 	}
 
-	var isPtr = (t.Kind() == reflect.Ptr)
+	var isPtr = t.Kind() == reflect.Ptr
 
 	hasOrCols := false
 	pkCol := ""
@@ -761,7 +761,9 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 		t = t.Elem()
 		if processOr {
 			pkField, pkCol, orCols = getOrColumnsByType(t)
-			hasOrCols = orCols != nil && len(orCols) > 0
+			if orCols != nil && len(orCols) > 0 {
+				hasOrCols = true
+			}
 		}
 	}
 	//对args中的数组进行处理
@@ -811,20 +813,17 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 				} else {
 					fName = colName2FieldName(c)
 				}
-
 				fv := v.Elem().FieldByName(fName)
 				if !fv.CanAddr() {
 					log.Printf("missing field: %s , query: %s\n", fName, queryStr)
 					var b interface{}
 					targets[k] = &b
-					continue
+				} else {
+					targets[k] = fv.Addr().Interface()
 				}
-				targets[k] = fv.Addr().Interface()
 			}
 			err = rows.Scan(targets...)
-
 			if err != nil {
-				log.Println("%v, %v", err, rows)
 				return err
 			}
 			sliceValue.Set(reflect.Append(sliceValue, v))
@@ -907,7 +906,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 					return err
 				}
 				defer orRows.Close()
-
 				for orRows.Next() {
 					orCols, err := orRows.Columns()
 					if err != nil {
