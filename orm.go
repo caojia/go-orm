@@ -182,7 +182,7 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 
 func logPrint(log SqlLogger, exp *Explain, duration time.Duration, queryStr string, args ...interface{}) {
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
-	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", queryStr, args), Explain: exp}
+	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%+v", queryStr, args), Explain: exp}
 	log.Log(&sqlLog)
 }
 func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
@@ -1142,7 +1142,7 @@ func insert(tdx Tdx, s interface{}) error {
 	return nil
 }
 
-//更新或者插入，on duplicate key
+//更新或者插入，on duplicate key,	其中keys只支持写入数据库对应的字段
 func insertOrUpdate(tdx Tdx, s interface{}, keys []string) error {
 	cols, vals, ifs, pk, isAi, pkName := columnsByStruct(s)
 	for k, v := range keys {
@@ -1355,6 +1355,8 @@ func (o *ORM) SelectInt(query string, args ...interface{}) (int64, error) {
 func (o *ORM) UpdateByPK(s interface{}) error {
 	return updateByPK(o.db, s)
 }
+
+//在数据库字段和struct字段不是以驼峰表示法对应的时候就会报错，建议填入数据库对应的字段
 func (o *ORM) UpdateFieldsByPK(s interface{}, fields []string) error {
 	return updateFieldsByPK(o.db, s, fields)
 }
