@@ -64,20 +64,31 @@ func fieldName2ColName(buf string) string {
 */
 func reflectStruct(s interface{}, cols []string, row *sql.Rows) error {
 	v := reflect.ValueOf(s)
-	return reflectStructValue(v, cols, row)
+	t := reflect.TypeOf(s)
+	return reflectStructValue(v, t.Elem(), cols, row)
 }
-
-/**
-
- */
-func reflectStructValue(v reflect.Value, cols []string, row *sql.Rows) error {
+func reflectStructValue(v reflect.Value, t reflect.Type, cols []string, row *sql.Rows) error {
 	if v.Kind() != reflect.Ptr {
 		panic(errors.New("holder should be pointer"))
 	}
 	v = v.Elem()
 	targets := make([]interface{}, len(cols))
+	dbTags := make(map[string]string, len(cols))
+	//修改映射关系
+	for k := 0; k < t.NumField(); k++ {
+		ft := t.Field(k)
+		if ft.Tag.Get("db") != "" { //获取struct中的db标签组成字典，在后面更新中，只要字典存在的值，就进行替换
+			dbTags[ft.Tag.Get("db")] = ft.Name
+		}
+	}
 	for k, c := range cols {
-		fv := v.FieldByName(colName2FieldName(c))
+		col := ""
+		if temp, ok := dbTags[c]; ok {
+			col = temp
+		} else {
+			col = colName2FieldName(c)
+		}
+		fv := v.FieldByName(col)
 		if !fv.CanAddr() {
 			log.Println("missing filed", c)
 			var b interface{}
@@ -86,11 +97,7 @@ func reflectStructValue(v reflect.Value, cols []string, row *sql.Rows) error {
 			targets[k] = fv.Addr().Interface()
 		}
 	}
-	err := row.Scan(targets...)
-	if err != nil {
-		return err
-	}
-	return nil
+	return row.Scan(targets...)
 }
 
 func checkStruct(s interface{}, cols []string, tableName string) error {
@@ -170,16 +177,12 @@ func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
 }
 
 func (n *VerboseSqlLogger) ShowExplain() bool {
-	return false
+	return true
 }
 
-/**
-进行日志输出，isQuery，屏蔽掉exec的explain输出，0表示query，1表示exec
-*/
 func logPrint(log SqlLogger, exp *Explain, duration time.Duration, queryStr string, args ...interface{}) {
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
 	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%v", queryStr, args), Explain: exp}
-
 	log.Log(&sqlLog)
 }
 func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
@@ -245,6 +248,7 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 
 func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
 	params := sqlParamReg.FindAllString(paramQuery, -1)
+	log.Println(params)
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
@@ -286,6 +290,9 @@ func getPkColumnByType(t reflect.Type) string {
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
 		if ft.Tag.Get("pk") == "true" {
+			if ft.Tag.Get("db") != "" {
+				return ft.Tag.Get("db")
+			}
 			return fieldName2ColName(ft.Name)
 		}
 	}
@@ -299,14 +306,21 @@ type orColumn struct {
 	orType    reflect.Type
 }
 
-func getOrColumns(s interface{}) (reflect.StructField, []*orColumn) {
+/**
+返回三个值，一个是struct主键的field，一个是主键对应的数据库的值 ，一个是[]*orColumn
+*/
+func getOrColumns(s interface{}) (string, string, []*orColumn) {
 	t := reflect.TypeOf(s).Elem()
 	return getOrColumnsByType(t)
 }
 
-func getOrColumnsByType(t reflect.Type) (reflect.StructField, []*orColumn) {
+/**
+根据struct中的值找到其他struct进行relation的联系，并组成[]*orColumn结构,返回三个值，一个是struct主键的field，一个是主键对应的数据库的值 ，一个是[]*orColumn
+*/
+func getOrColumnsByType(t reflect.Type) (string, string, []*orColumn) {
 	res := make([]*orColumn, 0)
-	pkColumn := reflect.StructField{}
+	pkCol := ""
+	pkField := ""
 	// TODO: error check, i.e., has_one field must be a pointer of registered model
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
@@ -349,14 +363,19 @@ func getOrColumnsByType(t reflect.Type) (reflect.StructField, []*orColumn) {
 			}
 		}
 		if ft.Tag.Get("pk") == "true" {
-			pkColumn = ft
+			if ft.Tag.Get("db") != "" {
+				pkCol = ft.Tag.Get("db")
+			} else {
+				pkCol = fieldName2ColName(ft.Name)
+			}
+			pkField = ft.Name
 		}
 	}
-	return pkColumn, res
+	return pkField, pkCol, res
 }
 
 /**
-Return s.TableName() if valid
+通过struct中实现的TableName方法来反射调用获取表的表名
 */
 func getTableName(s interface{}) string {
 	tableNameMethod := reflect.ValueOf(s).MethodByName("TableName")
@@ -374,12 +393,12 @@ func getTableName(s interface{}) string {
 }
 
 func selectByPK(tdx Tdx, s interface{}, pk interface{}) error {
-	pkname := getPKColumn(s)
-	tabname := getTableName(s)
-	if pkname == "" {
-		return errors.New(tabname + " does not have primary key")
+	pkName := getPKColumn(s)
+	tabName := getTableName(s)
+	if pkName == "" {
+		return errors.New(tabName + " does not have primary key")
 	}
-	return selectOne(tdx, s, fmt.Sprintf("select * from %s where %s = ?", tabname, pkname), pk)
+	return selectOne(tdx, s, fmt.Sprintf("select * from %s where %s = ?", tabName, pkName), pk)
 }
 
 func selectOne(tdx Tdx, s interface{}, query string, args ...interface{}) error {
@@ -388,23 +407,23 @@ func selectOne(tdx Tdx, s interface{}, query string, args ...interface{}) error 
 	if err != nil {
 		return err
 	}
-	pk, orColumns := getOrColumns(s)
+	pkField, pkCol, orColumns := getOrColumns(s)
 	if orColumns != nil && len(orColumns) > 0 {
 		v := reflect.ValueOf(s).Elem()
-		pkValue, err := getFieldValue(s, pk.Name)
+		pkValue, err := getFieldValue(s, pkField)
 		if err != nil {
 			return err
 		}
 		for _, orCol := range orColumns {
 			if orCol.or == "has_one" {
-				err = processOrHasOneRelation(tdx, orCol, v, pk, pkValue)
+				err = processOrHasOneRelation(tdx, orCol, v, pkCol, pkValue)
 				if err != nil {
 					return err
 				}
 			} else if orCol.or == "has_many" {
 				orField := v.FieldByName(orCol.fieldName)
 				err = selectManyInternal(tdx, orField.Addr().Interface(), false,
-					"SELECT * FROM "+orCol.table+" WHERE "+fieldName2ColName(pk.Name)+" = ?", pkValue)
+					"SELECT * FROM "+orCol.table+" WHERE "+pkCol+" = ?", pkValue)
 				if err != nil {
 					return err
 				}
@@ -449,24 +468,24 @@ func selectOneInternal(tdx Tdx, s interface{}, queryStr string, args ...interfac
 	return nil
 }
 
-func processOrHasOneRelation(tdx Tdx, orCol *orColumn, v reflect.Value, pk reflect.StructField, pkValue interface{}) error {
-	queryStr := fmt.Sprintf("SELECT * FROM `%s` WHERE `%s` = ? LIMIT 1", orCol.table, fieldName2ColName(pk.Name))
-	orRows, err := query(tdx, queryStr, pkValue)
+func processOrHasOneRelation(tdx Tdx, orCol *orColumn, v reflect.Value, pkCol string, pkValue interface{}) error {
+	queryStr := fmt.Sprintf("SELECT * FROM `%s` WHERE `%s` = ? LIMIT 1", orCol.table, pkCol)
+	rows, err := query(tdx, queryStr, pkValue)
 	if err != nil {
 		return err
 	}
-	defer orRows.Close()
+	defer rows.Close()
 
-	if !orRows.Next() {
+	if !rows.Next() {
 		return nil
 	}
-	orCols, err := orRows.Columns()
+	cols, err := rows.Columns()
 	if err != nil {
 		return err
 	}
 	orField := v.FieldByName(orCol.fieldName)
 	orValue := reflect.New(orField.Type().Elem())
-	err = reflectStructValue(orValue, orCols, orRows)
+	err = reflectStructValue(orValue, orField.Type().Elem(), cols, rows)
 	if err != nil {
 		return err
 	}
@@ -491,7 +510,8 @@ func processOrBelongsToRelation(tdx Tdx, orCol *orColumn, v reflect.Value, fk st
 	}
 	orField := v.FieldByName(orCol.fieldName)
 	orValue := reflect.New(orField.Type().Elem())
-	err = reflectStructValue(orValue, orCols, orRows)
+	err = reflectStructValue(orValue, orField.Type().Elem(), orCols, orRows)
+
 	if err != nil {
 		return err
 	}
@@ -734,12 +754,13 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	var isPtr = (t.Kind() == reflect.Ptr)
 
 	hasOrCols := false
-	pkCol := reflect.StructField{}
+	pkCol := ""
+	pkField := ""
 	var orCols []*orColumn = nil
 	if isPtr {
 		t = t.Elem()
 		if processOr {
-			pkCol, orCols = getOrColumnsByType(t)
+			pkField, pkCol, orCols = getOrColumnsByType(t)
 			hasOrCols = orCols != nil && len(orCols) > 0
 		}
 	}
@@ -775,11 +796,25 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 		v := reflect.New(t)
 		if isPtr {
 			targets := make([]interface{}, len(cols))
+			dbTags := make(map[string]string, len(cols))
+			//修改映射关系
+			for k := 0; k < t.NumField(); k++ {
+				ft := t.Field(k)
+				if ft.Tag.Get("db") != "" { //获取struct中的db标签组成字典，在后面更新中，只要字典存在的值，就进行替换
+					dbTags[ft.Tag.Get("db")] = ft.Name
+				}
+			}
 			for k, c := range cols {
-				fname := colName2FieldName(c)
-				fv := v.Elem().FieldByName(fname)
+				fName := ""
+				if temp, ok := dbTags[c]; ok {
+					fName = temp
+				} else {
+					fName = colName2FieldName(c)
+				}
+
+				fv := v.Elem().FieldByName(fName)
 				if !fv.CanAddr() {
-					fmt.Printf("missing field: %s , query: %s", fname, queryStr)
+					log.Printf("missing field: %s , query: %s\n", fName, queryStr)
 					var b interface{}
 					targets[k] = &b
 					continue
@@ -794,7 +829,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			}
 			sliceValue.Set(reflect.Append(sliceValue, v))
 			if hasOrCols {
-				pkFv := v.Elem().FieldByName(pkCol.Name)
+				pkFv := v.Elem().FieldByName(pkField)
 				if pkFv.IsValid() {
 					key := pkFv.Interface()
 					keys = append(keys, key)
@@ -836,8 +871,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 					}
 					i = i + 1
 				}
-				sqlQuery = makeString("SELECT * FROM "+orCol.table+" WHERE "+fk+" in (",
-					",", ")", fkValues)
+				sqlQuery = makeString("SELECT * FROM "+orCol.table+" WHERE "+fk+" in (", ",", ")", fkValues)
 				orRows, err := query(tdx, sqlQuery)
 
 				if err != nil {
@@ -850,7 +884,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 						return err
 					}
 					orValue := reflect.New(orCol.orType)
-					err = reflectStructValue(orValue, orCols, orRows)
+					err = reflectStructValue(orValue, orCol.orType, orCols, orRows)
 					if err != nil {
 						return err
 					}
@@ -865,7 +899,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 					}
 				}
 			} else {
-				sqlQuery = makeString("SELECT * FROM "+orCol.table+" WHERE "+fieldName2ColName(pkCol.Name)+" in (",
+				sqlQuery = makeString("SELECT * FROM "+orCol.table+" WHERE "+pkCol+" in (",
 					",", ")", keys)
 				orRows, err := query(tdx, sqlQuery)
 
@@ -880,11 +914,11 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 						return err
 					}
 					orValue := reflect.New(orCol.orType)
-					err = reflectStructValue(orValue, orCols, orRows)
+					err = reflectStructValue(orValue, orCol.orType, orCols, orRows)
 					if err != nil {
 						return err
 					}
-					keyValue := orValue.Elem().FieldByName(pkCol.Name)
+					keyValue := orValue.Elem().FieldByName(pkField)
 					if keyValue.IsValid() {
 						if v, ok := resMap[keyValue.Interface()]; ok {
 							if orCol.or == "has_one" {
@@ -933,7 +967,10 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 		ft := t.Field(k)
 		if ft.Tag.Get("pk") == "true" {
 			pk = v.Field(k)
-			pkName = fieldName2ColName(ft.Name)
+			pkName = ft.Tag.Get("db")
+			if pkName == "" {
+				pkName = fieldName2ColName(ft.Name)
+			}
 			if ft.Tag.Get("ai") == "true" {
 				isAi = true
 			}
@@ -969,12 +1006,19 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 	isAi := false
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
-		cn := fieldName2ColName(ft.Name)
-
+		//优先对标签进行处理，当没有找到标签时，就直接对struct的字段进行转化
+		str := ""
+		str = ft.Tag.Get("db")
+		if str == "" {
+			str = fieldName2ColName(ft.Name)
+		}
 		//auto increment field
 		if ft.Tag.Get("pk") == "true" {
 			pk = v.Field(k)
-			pkName = fieldName2ColName(ft.Name)
+			pkName = ft.Tag.Get("db")
+			if pkName == "" {
+				pkName = fieldName2ColName(ft.Name)
+			}
 			if ft.Tag.Get("ai") == "true" {
 				isAi = true
 				continue
@@ -990,7 +1034,7 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 			cols += ","
 			vals += ","
 		}
-		cols += cn
+		cols += str
 		vals += "?"
 		r := v.Field(k).Addr().Interface()
 		if v.Field(k).Type().String() == "time.Time" {
@@ -1012,7 +1056,11 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 	isFirst := true
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
-		cn := fieldName2ColName(ft.Name)
+		str := ""
+		str = ft.Tag.Get("db")
+		if str == "" {
+			str = fieldName2ColName(ft.Name)
+		}
 		if ft.Tag.Get("pk") == "true" {
 			if ft.Tag.Get("ai") == "true" {
 				continue
@@ -1024,7 +1072,7 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 		if !isFirst {
 			cols += ","
 		}
-		cols += cn
+		cols += str
 		isFirst = false
 	}
 	cols += ")"
