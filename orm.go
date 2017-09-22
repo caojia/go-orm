@@ -1171,6 +1171,7 @@ func insert(tdx Tdx, s interface{}) error {
 //更新或者插入，on duplicate key,	其中keys只支持写入数据库对应的字段
 func insertOrUpdate(tdx Tdx, s interface{}, fields []string) error {
 	cols, vals, ifs, pk, isAi, pkName := columnsByStruct(s)
+	//重复时，需要更新的字段
 	for k, v := range fields {
 		v = fieldName2ColName(v)
 		str := fmt.Sprintf("%s=values(%s)", v, v)
