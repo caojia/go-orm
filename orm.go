@@ -83,7 +83,7 @@ func reflectStructValue(v reflect.Value, t reflect.Type, cols []string, row *sql
 	}
 	for k, c := range cols {
 		col := ""
-		if temp, ok := dbTags[c]; ok {
+		if temp, ok := dbTags[c]; ok { //先进行字典匹配
 			col = temp
 		} else {
 			col = colName2FieldName(c)
@@ -743,9 +743,7 @@ func selectMany(tdx Tdx, s interface{}, query string, args ...interface{}) error
 	return selectManyInternal(tdx, s, true, query, args...)
 }
 
-/**
-替换query 中？？为长度为len的？
-*/
+//替换query 中？？为长度为len的？
 func getNumInStr(len int, query string) string {
 	str := ""
 	for i := 0; i < len; i++ {
@@ -1171,20 +1169,20 @@ func insert(tdx Tdx, s interface{}) error {
 }
 
 //更新或者插入，on duplicate key,	其中keys只支持写入数据库对应的字段
-func insertOrUpdate(tdx Tdx, s interface{}, keys []string) error {
+func insertOrUpdate(tdx Tdx, s interface{}, fields []string) error {
 	cols, vals, ifs, pk, isAi, pkName := columnsByStruct(s)
-	for k, v := range keys {
+	for k, v := range fields {
 		v = fieldName2ColName(v)
 		str := fmt.Sprintf("%s=values(%s)", v, v)
-		keys[k] = str
+		fields[k] = str
 		//检查主键的情况，在insert中加入主键
-		if v == pkName {
+		if pk.Addr().Interface != nil {
 			cols += fmt.Sprintf(",%s", pkName)
 			vals += ",?"
 			ifs = append(ifs, pk.Addr().Interface())
 		}
 	}
-	q := fmt.Sprintf("insert into %s (%s) values (%s) on duplicate key update %s", getTableName(s), cols, vals, strings.Join(keys, ","))
+	q := fmt.Sprintf("insert into %s (%s) values (%s) on duplicate key update %s", getTableName(s), cols, vals, strings.Join(fields, ","))
 	ret, err := exec(tdx, q, ifs...)
 	if err != nil {
 		return err
