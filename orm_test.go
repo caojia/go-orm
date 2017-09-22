@@ -233,7 +233,7 @@ func TestORMUpdate(t *testing.T) {
 	})
 }
 
-func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
+func TestOrmInsertOrUpdate(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		testObj1 := &TestOrmA123{
 			OtherId:     1,
@@ -276,8 +276,22 @@ func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		log.Println(t3.Description)
 		assert.Equal(t, t3.Description, "update")
+		testObj4 := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		//test case 对0值进行判断
+		err = orm.InsertOrUpdate(testObj4, []string{"description"})
+		if err != nil {
+			t.Error(err)
+		}
+		if testObj4.TestID != 3 {
+			t.Fatal("test id should be 3")
+		}
 	})
 }
 func TestORMUpdateFieldsByPK(t *testing.T) {
