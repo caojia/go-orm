@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/magiconair/properties/assert"
 	"log"
 	"testing"
 	"time"
@@ -165,6 +166,41 @@ func oneTestScope(fn func(orm *ORM, testTableName string)) {
 	fn(orm, "test_orm_a123")
 }
 
+func TestORMExecIN(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		for i := 10; i > 0; i-- {
+			testObj := &TestOrmA123{
+				OtherId:     1,
+				TestOrmDId:  0,
+				Description: "update test ",
+				StartDate:   time.Now(),
+				EndDate:     time.Now(),
+			}
+			err := orm.Insert(testObj)
+			if err != nil {
+				t.Error(err)
+			}
+		}
+		sql := "update test_orm_a123 set description = 'update' where test_id in (??)"
+		testId := []int{1, 2, 3, 4, 5}
+		res, err := orm.Exec(sql, testId)
+		if err != nil {
+			t.Error(err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t, int(n), 5)
+		var testOrmA123 []*TestOrmA123
+		err = orm.Select(&testOrmA123, `select * from test_orm_a123 where description = ?`, "update")
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t, len(testOrmA123), 5)
+	})
+}
+
 func TestORMUpdate(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		testObj := &TestOrmA123{
@@ -212,7 +248,7 @@ func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
 		}
 		testObj1.TestID = 1
 		testObj1.StartDate = time.Now()
-		err := orm.InsertOrUpdate(testObj1, []string{"TestId"})
+		err := orm.InsertOrUpdate(testObj1, []string{"test_id"})
 		if err != nil {
 			t.Error(err)
 		}
@@ -247,7 +283,7 @@ func TestORMUpdateFieldsByPK(t *testing.T) {
 		orm.Insert(testObj)
 		testObj.Description = "update"
 		testObj.OtherId = 1000
-		err := orm.UpdateFieldsByPK(testObj, []string{"description", "other_id"})
+		err := orm.UpdateFieldsByPK(testObj, []string{"description", "OtherId"})
 		if err != nil {
 			t.Error(err)
 		}
@@ -539,11 +575,11 @@ func TestOrmHasOneRelation(t *testing.T) {
 
 		// insert 10 orm c objects for each orm a
 		count := 10
-		for testId := testObj.TestID; testId <= objA2.TestID; testId++ {
+		for TestID := testObj.TestID; TestID <= objA2.TestID; TestID++ {
 			for i := 0; i < count; i++ {
 				orm.Insert(&TestOrmC111{
-					Name:   fmt.Sprintf("%d_orm_c_%d", testId, i),
-					TestID: testId,
+					Name:   fmt.Sprintf("%d_orm_c_%d", TestID, i),
+					TestID: TestID,
 				})
 			}
 		}
@@ -585,7 +621,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 
 		for _, ormA := range sliceRes {
 			for _, c := range ormA.OrmCs {
-				//t.Log(c, ormA.TestId)
+				//t.Log(c, ormA.TestID)
 				if c.TestID != ormA.TestID {
 					t.Fatal("incorrect result")
 				}
@@ -602,7 +638,7 @@ func TestOrmHasOneRelation(t *testing.T) {
 			}
 			for _, ormA := range sliceRes {
 				for _, c := range ormA.OrmCs {
-					//t.Log(c, ormA.TestId)
+					//t.Log(c, ormA.TestID)
 					if c.TestID != ormA.TestID {
 						t.Fatal("incorrect result")
 					}
@@ -701,11 +737,11 @@ func TestOrmBelongsToRelation(t *testing.T) {
 
 		// insert 10 orm c objects for each orm a
 		count := 10
-		for testId := testObj.TestID; testId <= objA2.TestID; testId++ {
+		for TestID := testObj.TestID; TestID <= objA2.TestID; TestID++ {
 			for i := 0; i < count; i++ {
 				orm.Insert(&TestOrmC111{
-					Name:   fmt.Sprintf("%d_orm_c_%d", testId, i),
-					TestID: testId,
+					Name:   fmt.Sprintf("%d_orm_c_%d", TestID, i),
+					TestID: TestID,
 				})
 			}
 		}
@@ -764,7 +800,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 
 		for _, ormA := range sliceRes {
 			for _, c := range ormA.OrmCs {
-				//t.Log(c, ormA.TestId)
+				//t.Log(c, ormA.TestID)
 				if c.TestID != ormA.TestID {
 					t.Fatal("incorrect result")
 				}
@@ -783,7 +819,7 @@ func TestOrmBelongsToRelation(t *testing.T) {
 			}
 			for _, ormA := range sliceRes {
 				for _, c := range ormA.OrmCs {
-					//t.Log(c, ormA.TestId)
+					//t.Log(c, ormA.TestID)
 					if c.TestID != ormA.TestID {
 						t.Fatal("incorrect result")
 					}
