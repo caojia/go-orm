@@ -1175,12 +1175,12 @@ func insertOrUpdate(tdx Tdx, s interface{}, fields []string) error {
 		v = fieldName2ColName(v)
 		str := fmt.Sprintf("%s=values(%s)", v, v)
 		fields[k] = str
-		//检查主键的情况，在insert中加入主键
-		if pk.Addr().Interface != nil {
-			cols += fmt.Sprintf(",%s", pkName)
-			vals += ",?"
-			ifs = append(ifs, pk.Addr().Interface())
-		}
+	}
+	//检查主键的情况，在insert中加入主键
+	if pk.Addr().Interface != nil {
+		cols += fmt.Sprintf(",%s", pkName)
+		vals += ",?"
+		ifs = append(ifs, pk.Addr().Interface())
 	}
 	q := fmt.Sprintf("insert into %s (%s) values (%s) on duplicate key update %s", getTableName(s), cols, vals, strings.Join(fields, ","))
 	ret, err := exec(tdx, q, ifs...)
