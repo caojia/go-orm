@@ -284,6 +284,8 @@ func TestOrmInsertOrUpdate(t *testing.T) {
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
+		testObj4.TestID = 0
+		log.Println("test_id", testObj4.TestID)
 		//test case 对0值进行判断
 		err = orm.InsertOrUpdate(testObj4, []string{"description"})
 		if err != nil {
