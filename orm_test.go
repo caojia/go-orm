@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/magiconair/properties/assert"
 	"log"
 	"testing"
 	"time"
@@ -68,7 +69,7 @@ func (obj TestOrmF123) TableName() string {
 }
 
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
-	orm := NewORM("root:123456@/orm_test?parseTime=true&loc=Local")
+	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
 	_, err := orm.Exec(`
         CREATE TABLE IF NOT EXISTS test_orm_a123 (
@@ -163,6 +164,41 @@ func oneTestScope(fn func(orm *ORM, testTableName string)) {
 	defer orm.Exec("DROP TABLE IF EXISTS test_orm_e333;")
 	defer orm.Exec("DROP TABLE IF EXISTS orm_f;")
 	fn(orm, "test_orm_a123")
+}
+
+func TestORMExecIN(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		for i := 10; i > 0; i-- {
+			testObj := &TestOrmA123{
+				OtherId:     1,
+				TestOrmDId:  0,
+				Description: "update test ",
+				StartDate:   time.Now(),
+				EndDate:     time.Now(),
+			}
+			err := orm.Insert(testObj)
+			if err != nil {
+				t.Error(err)
+			}
+		}
+		sql := "update test_orm_a123 set description = 'update' where test_id in (??)"
+		testId := []int{1, 2, 3, 4, 5}
+		res, err := orm.Exec(sql, testId)
+		if err != nil {
+			t.Error(err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t, int(n), 5)
+		var testOrmA123 []*TestOrmA123
+		err = orm.Select(&testOrmA123, `select * from test_orm_a123 where description = ?`, "update")
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t, len(testOrmA123), 5)
+	})
 }
 
 func TestORMUpdate(t *testing.T) {

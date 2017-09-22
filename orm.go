@@ -180,10 +180,25 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 	return true
 }
 
-func logPrint(log SqlLogger, exp *Explain, duration time.Duration, queryStr string, args ...interface{}) {
+func logPrint(logger SqlLogger, exp *Explain, duration time.Duration, queryStr string, args ...interface{}) {
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
-	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%+v", queryStr, args), Explain: exp}
-	log.Log(&sqlLog)
+	newArgs := make([]interface{}, 0)
+	for _, arg := range args {
+		t := reflect.TypeOf(arg)
+		switch t.Kind() {
+		case reflect.Ptr:
+			v := reflect.ValueOf(arg)
+			if t.String() == "*time.Time" { //对时间进行处理
+				newArgs = append(newArgs, arg.(*time.Time).Format("2006-01-02 15:04:05"))
+			} else {
+				newArgs = append(newArgs, v.Elem().Interface())
+			}
+		default:
+			newArgs = append(newArgs, arg)
+		}
+	}
+	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%+v", queryStr, newArgs), Explain: exp}
+	logger.Log(&sqlLog)
 }
 func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
 	explainStr := fmt.Sprintf("explain %s", query)
@@ -220,6 +235,7 @@ func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
 }
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 	start := time.Now()
+	query, args = changeSQLIn(query, args...)
 	res, err := tdx.Exec(query, args...)
 	if err != nil { //更换处理方式，如果是err就直接打印err日志，不打印其他日志，不用多执行一遍exec
 		return res, err
@@ -229,6 +245,7 @@ func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 }
 
 func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
+	queryStr, args = changeSQLIn(queryStr, args...)
 	exp := &Explain{}
 	var err error
 	if sqlLogger.ShowExplain() {
@@ -739,6 +756,31 @@ func getNumInStr(len int, query string) string {
 	}
 	return strings.Replace(query, "??", str, 1)
 }
+
+//检测sql中是否存在in，是否在args中存在数组和??这个关键词，如果都存在就进行拉平
+func changeSQLIn(sql string, args ...interface{}) (string, []interface{}) {
+	newArgs := make([]interface{}, 0)
+	if strings.Contains(sql, "??") {
+		//只有in的时候，对args中的数组进行处理
+		for _, arg := range args {
+			switch reflect.TypeOf(arg).Kind() {
+			case reflect.Slice:
+				s := reflect.ValueOf(arg)
+				sql = getNumInStr(s.Len(), sql)
+				for i := 0; i < s.Len(); i++ {
+					newArgs = append(newArgs, s.Index(i).Interface())
+				}
+			default:
+				newArgs = append(newArgs, arg)
+			}
+		}
+	} else {
+		newArgs = append(newArgs, args...)
+	}
+	return sql, newArgs
+}
+
+//搜索一个数组，并支持关联
 func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string, args ...interface{}) error {
 	t, err := toSliceType(s)
 	if err != nil {
@@ -766,23 +808,9 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			}
 		}
 	}
-	//对args中的数组进行处理
-	newArgs := make([]interface{}, 0)
-	for _, arg := range args {
-		switch reflect.TypeOf(arg).Kind() {
-		case reflect.Slice:
-			s := reflect.ValueOf(arg)
-			queryStr = getNumInStr(s.Len(), queryStr)
-			for i := 0; i < s.Len(); i++ {
-				newArgs = append(newArgs, s.Index(i).Interface())
-			}
-		default:
-			newArgs = append(newArgs, arg)
-		}
-	}
 	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
-	rows, err := query(tdx, queryStr, newArgs...)
+	rows, err := query(tdx, queryStr, args...)
 	if err != nil {
 		return err
 	}
