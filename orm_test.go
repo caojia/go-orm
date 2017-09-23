@@ -233,7 +233,7 @@ func TestORMUpdate(t *testing.T) {
 	})
 }
 
-func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
+func TestOrmInsertOrUpdate(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		testObj1 := &TestOrmA123{
 			OtherId:     1,
@@ -247,15 +247,15 @@ func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
 			t.Fatal("test id should be 1")
 		}
 		testObj1.TestID = 1
-		testObj1.StartDate = time.Now()
-		err := orm.InsertOrUpdate(testObj1, []string{"test_id"})
+		testObj1.Description = "update"
+		err := orm.InsertOrUpdate(testObj1, []string{"description"})
 		if err != nil {
 			t.Error(err)
 		}
 		testObj2 := &TestOrmA123{
 			OtherId:     1,
 			TestOrmDId:  0,
-			Description: "update test ",
+			Description: "update test",
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
@@ -264,10 +264,35 @@ func TestOrmInsertDuplicateKeyUpdate(t *testing.T) {
 			t.Error(err)
 		}
 		var loadobj []*TestOrmA123
-		if err := orm.Select(&loadobj, "select * from test_orm_a123 where other_id = ?", 1); err != nil {
+		err = orm.Select(&loadobj, "select * from test_orm_a123 where other_id = ?", 1)
+		if err != nil {
 			t.Error(err)
-		} else if len(loadobj) != 2 {
+		}
+		if len(loadobj) != 2 {
 			t.Error(len(loadobj))
+		}
+		t3 := &TestOrmA123{}
+		err = orm.SelectOne(t3, "select * from test_orm_a123 where test_id = ?", 1)
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t, t3.Description, "update")
+		testObj4 := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		testObj4.TestID = 0
+		log.Println("test_id", testObj4.TestID)
+		//test case 对0值进行判断
+		err = orm.InsertOrUpdate(testObj4, []string{"description"})
+		if err != nil {
+			t.Error(err)
+		}
+		if testObj4.TestID != 3 {
+			t.Fatal("test id should be 3")
 		}
 	})
 }
