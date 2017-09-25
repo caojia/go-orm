@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"reflect"
 	"regexp"
@@ -16,6 +15,9 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/avct/prestgo"
 	//"strconv"
 	"encoding/json"
 	"strconv"
@@ -1279,6 +1281,14 @@ type ORM struct {
 }
 
 func NewORM(ds string) *ORM {
+	return newORMWithDriver(ds, "mysql")
+}
+
+func NewPrestoORM(ds string) *ORM {
+	return newORMWithDriver(ds, "prestgo")
+}
+
+func newORMWithDriver(ds string, driverName string) *ORM {
 	initOnce.Do(func() {
 		sqlParamReg, _ = regexp.Compile("(#{[a-zA-Z0-9-_]*})")
 	})
@@ -1287,7 +1297,7 @@ func NewORM(ds string) *ORM {
 		tables: make(map[string]interface{}),
 	}
 	var err error
-	ret.db, err = sql.Open("mysql", ds)
+	ret.db, err = sql.Open(driverName, ds)
 	if err != nil {
 		log.Fatalln("can not connect to db:", err)
 	}
