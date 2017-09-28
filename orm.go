@@ -17,7 +17,6 @@ import (
 	"unicode"
 
 	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/avct/prestgo"
 	//"strconv"
 	"encoding/json"
 	"strconv"
