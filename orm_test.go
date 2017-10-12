@@ -181,7 +181,7 @@ func TestSelectArr(t *testing.T) {
 			}
 		}
 		var arr []*TestOrmA123
-		err := orm.Select(&arr, "select test_id from test_orm_a123 where other_id = 1")
+		err := orm.Select(&arr, "select * from test_orm_a123 where other_id = 1")
 		if err != nil {
 			t.Error(err)
 		}
@@ -215,7 +215,7 @@ func TestORMExecIN(t *testing.T) {
 		}
 		assert.Equal(t, int(n), 5)
 		var testOrmA123 []*TestOrmA123
-		err = orm.Select(&testOrmA123, `select other_id from test_orm_a123 where description = ?`, "update")
+		err = orm.Select(&testOrmA123, `select * from test_orm_a123 where description = ?`, "update")
 		if err != nil {
 			t.Error(err)
 		}
