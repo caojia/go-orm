@@ -289,7 +289,7 @@ func TestOrmInsertOrUpdate(t *testing.T) {
 			t.Error(err)
 		}
 		var loadobj []*TestOrmA123
-		err = orm.Select(&loadobj, "select other_id from test_orm_a123 where other_id = ?", 1)
+		err = orm.Select(&loadobj, "select * from test_orm_a123 where other_id = ?", 1)
 		if err != nil {
 			t.Error(err)
 		}
