@@ -180,8 +180,8 @@ func TestSelectArr(t *testing.T) {
 				t.Error(err)
 			}
 		}
-		var arr []*TestOrmA123
-		err := orm.Select(&arr, "select * from test_orm_a123 where other_id = 1")
+		var arr []int
+		err := orm.Select(&arr, "select test_id from test_orm_a123 where other_id = 1")
 		if err != nil {
 			t.Error(err)
 		}

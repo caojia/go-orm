@@ -783,7 +783,6 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	resMap := map[interface{}]reflect.Value{}
 	for rows.Next() {
 		cols, err := rows.Columns()
-		log.Println("cols", cols)
 		if err != nil {
 			return err
 		}
