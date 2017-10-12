@@ -567,17 +567,17 @@ func selectInt(tdx Tdx, queryStr string, args ...interface{}) (int64, error) {
 	return ret, err
 }
 
-/**
-判断时候为slice 的指针类型
-*/
+//判断是否为 slice的指针类型
 func toSliceType(i interface{}) (reflect.Type, error) {
 	t := reflect.TypeOf(i)
+	//判断是否数组
 	if t.Kind() != reflect.Ptr {
 		if t.Kind() == reflect.Slice {
 			return nil, errors.New("can not select into a non-pointer slice")
 		}
 		return nil, nil
 	}
+	//判断该指针是否为数组类型的指针
 	if t = t.Elem(); t.Kind() != reflect.Slice {
 		return nil, errors.New("can not select into a non-pointer slice")
 	}
@@ -743,42 +743,7 @@ func selectMany(tdx Tdx, s interface{}, query string, args ...interface{}) error
 	return selectManyInternal(tdx, s, true, query, args...)
 }
 
-//替换query 中？？为长度为len的？
-func getNumInStr(len int, query string) string {
-	str := ""
-	for i := 0; i < len; i++ {
-		str += "?"
-		if i != len-1 {
-			str += ","
-		}
-	}
-	return strings.Replace(query, "??", str, 1)
-}
-
-//检测sql中是否存在in，是否在args中存在数组和??这个关键词，如果都存在就进行拉平
-func changeSQLIn(sql string, args ...interface{}) (string, []interface{}) {
-	newArgs := make([]interface{}, 0)
-	if strings.Contains(sql, "??") {
-		//只有in的时候，对args中的数组进行处理
-		for _, arg := range args {
-			switch reflect.TypeOf(arg).Kind() {
-			case reflect.Slice:
-				s := reflect.ValueOf(arg)
-				sql = getNumInStr(s.Len(), sql)
-				for i := 0; i < s.Len(); i++ {
-					newArgs = append(newArgs, s.Index(i).Interface())
-				}
-			default:
-				newArgs = append(newArgs, arg)
-			}
-		}
-	} else {
-		newArgs = append(newArgs, args...)
-	}
-	return sql, newArgs
-}
-
-//搜索一个数组，并支持关联
+//搜索一个数组，并支持关联，当搜索单数组
 func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string, args ...interface{}) error {
 	t, err := toSliceType(s)
 	if err != nil {
@@ -818,6 +783,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	resMap := map[interface{}]reflect.Value{}
 	for rows.Next() {
 		cols, err := rows.Columns()
+		log.Println("cols", cols)
 		if err != nil {
 			return err
 		}
@@ -976,9 +942,7 @@ func makeString(start, split, end string, ids []interface{}) string {
 
 var zeroTime = time.Unix(1, 0)
 
-/**
-通过fields中的字段获取部分数据以及主建和主键的值
-*/
+//通过fields中的字段获取部分数据以及主建和主键的值
 func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect.Value, bool, string) {
 	t := reflect.TypeOf(s).Elem()
 	v := reflect.ValueOf(s).Elem()
@@ -1493,6 +1457,10 @@ func (o *ORMTran) Insert(s interface{}) error {
 	return insert(o.tx, s)
 }
 
+func (o *ORMTran) InsertOrUpdate(s interface{}, keys []string) error {
+	return insertOrUpdate(o.tx, s, keys)
+}
+
 func (o *ORMTran) InsertBatch(s []interface{}) error {
 	return insertBatch(o.tx, s)
 }
@@ -1501,6 +1469,10 @@ func (o *ORMTran) UpdateByPK(s interface{}) error {
 	return updateByPK(o.tx, s)
 }
 
+//在数据库字段和struct字段不是以驼峰表示法对应的时候就会报错，建议填入数据库对应的字段
+func (o *ORMTran) UpdateFieldsByPK(s interface{}, fields []string) error {
+	return updateFieldsByPK(o.tx, s, fields)
+}
 func (o *ORMTran) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return exec(o.tx, query, args...)
 }
