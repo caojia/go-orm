@@ -11,7 +11,7 @@ import (
 )
 
 type TestOrmA123 struct {
-	TestID      int64 `pk:"true" ai:"true" db:"test_id"`
+	TestID      int64 `pk:"true" db:"test_id" ai:"true"`
 	OtherId     int64
 	Description string
 	Name        sql.NullString
@@ -165,7 +165,29 @@ func oneTestScope(fn func(orm *ORM, testTableName string)) {
 	defer orm.Exec("DROP TABLE IF EXISTS orm_f;")
 	fn(orm, "test_orm_a123")
 }
-
+func TestSelectArr(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		for i := 10; i > 0; i-- {
+			testObj := &TestOrmA123{
+				OtherId:     1,
+				TestOrmDId:  0,
+				Description: "update test ",
+				StartDate:   time.Now(),
+				EndDate:     time.Now(),
+			}
+			err := orm.Insert(testObj)
+			if err != nil {
+				t.Error(err)
+			}
+		}
+		var arr []int
+		err := orm.Select(&arr, "select test_id from test_orm_a123 where other_id = 1")
+		if err != nil {
+			t.Error(err)
+		}
+		log.Println(arr)
+	})
+}
 func TestORMExecIN(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		for i := 10; i > 0; i-- {
@@ -242,13 +264,16 @@ func TestOrmInsertOrUpdate(t *testing.T) {
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
-		orm.Insert(testObj1)
+		err := orm.Insert(testObj1)
+		if err != nil {
+			t.Error(err)
+		}
 		if testObj1.TestID != 1 {
 			t.Fatal("test id should be 1")
 		}
 		testObj1.TestID = 1
 		testObj1.Description = "update"
-		err := orm.InsertOrUpdate(testObj1, []string{"description"})
+		err = orm.InsertOrUpdate(testObj1, []string{"description"})
 		if err != nil {
 			t.Error(err)
 		}
