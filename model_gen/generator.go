@@ -78,8 +78,8 @@ func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema,
 	}()
 
 	model := ModelMeta{
-		Name:      toCapitalCase(shortTName, true),
-		LowerName: toCapitalCase(shortTName, false),
+		Name:      ToCapitalCase(shortTName, true),
+		LowerName: ToCapitalCase(shortTName, false),
 		DbName:    dbName,
 		TableName: tName,
 		Fields:    make([]ModelField, len(schema)),
@@ -89,7 +89,7 @@ func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema,
 	needTime := false
 	for i, col := range schema {
 		field := ModelField{
-			Name:            toCapitalCase(col.ColumnName, true),
+			Name:            ToCapitalCase(col.ColumnName, true),
 			ColumnName:      col.ColumnName,
 			Type:            col.DataType,
 			Tag:             "",
@@ -109,22 +109,34 @@ func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema,
 		} else if field.Type == "string" {
 			field.DefaultValueCode = "\"\""
 		}
+		dbTag := ""
+		tagArr := make([]string, 0)
+		//增加json和db标签
+		jsonTag := fmt.Sprintf("json:\"%s\"", col.ColumnName)
+		tagArr = append(tagArr, jsonTag)
 		if field.IsPrimaryKey {
+			tagArr = append(tagArr, "pk:\"true\"")
 			if model.PrimaryField != nil {
 				return fmt.Errorf("must not have more than one primary keys, %+v", field)
 			}
 			model.PrimaryField = &field
 			if field.IsAutoIncrement {
-				field.Tag = fmt.Sprintf("`pk:\"true\" ai:\"true\"`")
+				dbTag = fmt.Sprintf("db:\"%s,ai,pk\"", col.ColumnName)
+				tagArr = append(tagArr, "ai:\"true\"")
 			} else {
-				field.Tag = fmt.Sprintf("`pk:\"true\"`")
+				dbTag = fmt.Sprintf("db:\"%s,pk\"", col.ColumnName)
 			}
+		} else {
+			dbTag = fmt.Sprintf("db:\"%s\"", col.ColumnName)
 		}
 
 		if col.ColumnName == "created_at" || col.ColumnName == "updated_at" {
-			field.Tag = fmt.Sprintf("`ignore:\"true\"`")
+			tagArr = append(tagArr, "ignore:\"true\"")
 		}
-
+		if len(tagArr) > 0 {
+			tagArr = append(tagArr, dbTag)
+			field.Tag = fmt.Sprintf("`%s`", strings.Join(tagArr, " "))
+		}
 		if field.IsUniqueKey {
 			model.Uniques = append(model.Uniques, field)
 		}
@@ -371,7 +383,7 @@ func (m ModelMeta) GenTestCode(w *bufio.Writer, tmpl *template.Template) error {
 	return m.getTemplate(tmpl, "test_code", tmTestCode).Execute(w, m)
 }
 
-func toCapitalCase(name string, firstLetterUpper bool) string {
+func ToCapitalCase(name string, firstLetterUpper bool) string {
 	// cp___hello_12jiu -> CpHello_12Jiu
 	data := []byte(name)
 	segStart := true
@@ -412,4 +424,16 @@ func toCapitalCase(name string, firstLetterUpper bool) string {
 		isFirst = false
 	}
 	return string(data[:endPos])
+}
+func isHanUpper(col string) bool {
+	return colName2FieldName(col) != ToCapitalCase(col, true)
+}
+
+func colName2FieldName(buf string) string {
+	tks := strings.Split(buf, "_")
+	ret := ""
+	for _, tk := range tks {
+		ret += strings.Title(tk)
+	}
+	return ret
 }

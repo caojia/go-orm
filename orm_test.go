@@ -11,7 +11,7 @@ import (
 )
 
 type TestOrmA123 struct {
-	TestID      int64 `pk:"true" db:"test_id" ai:"true"`
+	TestID      int64 `db:"ai"pk:"true"json:"test_id"`
 	OtherId     int64
 	Description string
 	Name        sql.NullString
@@ -69,7 +69,7 @@ func (obj TestOrmF123) TableName() string {
 }
 
 func oneTestScope(fn func(orm *ORM, testTableName string)) {
-	orm := NewORM("root@/orm_test?parseTime=true&loc=Local")
+	orm := NewORM("root:123456@/orm_test?parseTime=true&loc=Local")
 	orm.TruncateTables()
 	_, err := orm.Exec(`
         CREATE TABLE IF NOT EXISTS test_orm_a123 (
