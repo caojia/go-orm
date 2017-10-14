@@ -411,10 +411,9 @@ func getOrColumnsByType(t reflect.Type) (string, string, []*orColumn) {
 			}
 		}
 		if ft.Tag.Get("pk") == "true" || isPkOrAi(dbTag, "pk") {
-			if dbCol == "" {
+			pkCol = dbCol
+			if pkCol == "" {
 				pkCol = fieldName2ColName(ft.Name)
-			} else {
-				pkCol = dbCol
 			}
 			pkField = ft.Name
 		}
@@ -984,10 +983,8 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 		jsonTag := strings.Split(ft.Tag.Get("json"), ",")[0]
 		if ft.Tag.Get("pk") == "true" || isPkOrAi(dbTag, "pk") {
 			pk = v.Field(k)
-			if dbCol != "" {
-				pkName = dbCol
-			}
-			if jsonTag != "" {
+			pkName = dbCol
+			if jsonTag != "" && pkName == "" {
 				pkName = jsonTag
 			}
 			if pkName == "" {
@@ -1033,10 +1030,8 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 		dbTag := ft.Tag.Get("db")
 		str := getDbTagCol(dbTag)
 		if str == "" {
-			jsonTag := strings.Split(ft.Tag.Get("json"), ",")[0]
-			if jsonTag != "" {
-				str = jsonTag
-			} else {
+			str = strings.Split(ft.Tag.Get("json"), ",")[0]
+			if str == "" {
 				str = fieldName2ColName(ft.Name)
 			}
 		}
