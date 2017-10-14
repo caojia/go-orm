@@ -25,6 +25,13 @@ type {{.Name}} struct {
 	{{end}}
 }
 
+func (obj {{.Name}}) Columns() map[string]string {
+	return map[string]string{
+	{{range .Fields}}"{{.ColumnName}}": "{{.Type}}",
+	{{end}}
+	}
+}
+
 func (obj {{.Name}}) TableName() string {
 	return "{{.TableName}}"
 }
