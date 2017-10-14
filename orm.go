@@ -441,7 +441,6 @@ func getTableName(s interface{}) string {
 
 func selectByPK(tdx Tdx, s interface{}, pk interface{}) error {
 	pkName := getPKColumn(s)
-	fmt.Println(pkName)
 	tabName := getTableName(s)
 	if pkName == "" {
 		return errors.New(tabName + " does not have primary key")
