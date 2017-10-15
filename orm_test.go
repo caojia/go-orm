@@ -34,7 +34,7 @@ type TestOrmB999 struct {
 }
 
 type TestOrmC111 struct {
-	TestOrmCId int64 `pk:"true" ai:"true"`
+	TestOrmCId int64 `db:"ai,pk"`
 	TestID     int64 `db:"test_id"`
 	Name       string
 }
