@@ -78,8 +78,8 @@ func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema,
 	}()
 
 	model := ModelMeta{
-		Name:      ToCapitalCase(shortTName, true),
-		LowerName: ToCapitalCase(shortTName, false),
+		Name:      toCapitalCase(shortTName, true),
+		LowerName: toCapitalCase(shortTName, false),
 		DbName:    dbName,
 		TableName: tName,
 		Fields:    make([]ModelField, len(schema)),
@@ -89,7 +89,7 @@ func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema,
 	needTime := false
 	for i, col := range schema {
 		field := ModelField{
-			Name:            ToCapitalCase(col.ColumnName, true),
+			Name:            toCapitalCase(col.ColumnName, true),
 			ColumnName:      col.ColumnName,
 			Type:            col.DataType,
 			Tag:             "",
@@ -383,7 +383,7 @@ func (m ModelMeta) GenTestCode(w *bufio.Writer, tmpl *template.Template) error {
 	return m.getTemplate(tmpl, "test_code", tmTestCode).Execute(w, m)
 }
 
-func ToCapitalCase(name string, firstLetterUpper bool) string {
+func toCapitalCase(name string, firstLetterUpper bool) string {
 	// cp___hello_12jiu -> CpHello_12Jiu
 	data := []byte(name)
 	segStart := true
@@ -426,7 +426,7 @@ func ToCapitalCase(name string, firstLetterUpper bool) string {
 	return string(data[:endPos])
 }
 func isHanUpper(col string) bool {
-	return colName2FieldName(col) != ToCapitalCase(col, true)
+	return colName2FieldName(col) != toCapitalCase(col, true)
 }
 
 func colName2FieldName(buf string) string {
