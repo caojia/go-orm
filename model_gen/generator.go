@@ -109,22 +109,34 @@ func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema,
 		} else if field.Type == "string" {
 			field.DefaultValueCode = "\"\""
 		}
+		dbTag := ""
+		tagArr := make([]string, 0)
+		//增加json和db标签
+		jsonTag := fmt.Sprintf("json:\"%s\"", col.ColumnName)
+		tagArr = append(tagArr, jsonTag)
 		if field.IsPrimaryKey {
+			tagArr = append(tagArr, "pk:\"true\"")
 			if model.PrimaryField != nil {
 				return fmt.Errorf("must not have more than one primary keys, %+v", field)
 			}
 			model.PrimaryField = &field
 			if field.IsAutoIncrement {
-				field.Tag = fmt.Sprintf("`pk:\"true\" ai:\"true\"`")
+				dbTag = fmt.Sprintf("db:\"%s,ai,pk\"", col.ColumnName)
+				tagArr = append(tagArr, "ai:\"true\"")
 			} else {
-				field.Tag = fmt.Sprintf("`pk:\"true\"`")
+				dbTag = fmt.Sprintf("db:\"%s,pk\"", col.ColumnName)
 			}
+		} else {
+			dbTag = fmt.Sprintf("db:\"%s\"", col.ColumnName)
 		}
 
 		if col.ColumnName == "created_at" || col.ColumnName == "updated_at" {
-			field.Tag = fmt.Sprintf("`ignore:\"true\"`")
+			tagArr = append(tagArr, "ignore:\"true\"")
 		}
-
+		if len(tagArr) > 0 {
+			tagArr = append(tagArr, dbTag)
+			field.Tag = fmt.Sprintf("`%s`", strings.Join(tagArr, " "))
+		}
 		if field.IsUniqueKey {
 			model.Uniques = append(model.Uniques, field)
 		}

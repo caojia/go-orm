@@ -41,6 +41,47 @@ func changeSQLIn(sql string, args ...interface{}) (string, []interface{}) {
 	return sql, newArgs
 }
 
+//判断主键和自增列是否存在，存在就返回true，否则返回false
+func isPkOrAi(dbTag string, str string) bool {
+	if dbTag == "" {
+		return false
+	}
+	arr := strings.Split(dbTag, ",")
+	if len(arr) == 1 {
+		if dbTag == str {
+			return true
+		}
+		return false
+	}
+	ok := false
+	for _, v := range arr {
+		if v == str {
+			ok = true
+		}
+	}
+	return ok
+}
+
+//获取db标签中的col
+func getDbTagCol(dbTag string) string {
+	if dbTag == "" {
+		return ""
+	}
+	arr := strings.Split(dbTag, ",")
+	if len(arr) == 1 {
+		if dbTag != "ai" && dbTag != "pk" {
+			return dbTag
+		}
+		return ""
+	}
+	for _, v := range arr {
+		if v != "ai" && v != "pk" {
+			return v
+		}
+	}
+	return ""
+}
+
 //把struct解析为map，规则是 pk -> cols ,ai->bool ,cols -> db tag ,field -> cols
 func reflectStructToMap(s interface{}) (map[string]interface{}, error) {
 	t := reflect.TypeOf(s)

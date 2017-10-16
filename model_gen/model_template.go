@@ -11,7 +11,6 @@ package {{.PkgName}}
 
 import (
 	"database/sql"
-	"encoding/json"
 	{{if .ImportTime}}"time"{{end}}
 )
 `
@@ -24,13 +23,6 @@ func init() {
 type {{.Name}} struct {
 	{{range .Fields}}{{.Name}} {{.Type}} {{.Tag}}{{if .Comment}} // {{.Comment}}{{end}}
 	{{end}}
-}
-
-func (obj {{.Name}}) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]interface{}{
-	{{range .Fields}}"{{.ColumnName}}": obj.{{.Name}}{{.Formatter}},
-	{{end}}
-	})
 }
 
 func (obj {{.Name}}) Columns() map[string]string {

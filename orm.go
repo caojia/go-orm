@@ -60,6 +60,25 @@ func fieldName2ColName(buf string) string {
 	return w.String()
 }
 
+//获取db标签中的内容，如果db标签为空，对json标签进行兼容
+func getDbTagMap(t reflect.Type, n int) map[string]string {
+	dbTags := make(map[string]string, n)
+	for k := 0; k < t.NumField(); k++ {
+		ft := t.Field(k)
+		dbTag := ft.Tag.Get("db")
+		dbCol := getDbTagCol(dbTag)
+		if dbCol != "" { //获取struct中的db标签组成字典，在后面更新中，只要字典存在的值，就进行替换
+			dbTags[dbCol] = ft.Name
+		} else {
+			jsonTag := ft.Tag.Get("json")
+			if jsonTag != "" {
+				dbTags[strings.Split(jsonTag, ",")[0]] = ft.Name
+			}
+		}
+	}
+	return dbTags
+}
+
 /*
  通过reflect把row中的值映射到一个struct中
 */
@@ -74,14 +93,9 @@ func reflectStructValue(v reflect.Value, t reflect.Type, cols []string, row *sql
 	}
 	v = v.Elem()
 	targets := make([]interface{}, len(cols))
-	dbTags := make(map[string]string, len(cols))
-	//修改映射关系
-	for k := 0; k < t.NumField(); k++ {
-		ft := t.Field(k)
-		if ft.Tag.Get("db") != "" { //获取struct中的db标签组成字典，在后面更新中，只要字典存在的值，就进行替换
-			dbTags[ft.Tag.Get("db")] = ft.Name
-		}
-	}
+	//修改映射关系,建立db的对应关系
+	dbTags := getDbTagMap(t, len(cols))
+
 	for k, c := range cols {
 		col := ""
 		if temp, ok := dbTags[c]; ok { //先进行字典匹配
@@ -304,12 +318,21 @@ func getPKColumn(s interface{}) string {
 	return getPkColumnByType(t)
 }
 
+//获取标签为pk的col
 func getPkColumnByType(t reflect.Type) string {
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
-		if ft.Tag.Get("pk") == "true" {
-			if ft.Tag.Get("db") != "" {
-				return ft.Tag.Get("db")
+		dbTag := ft.Tag.Get("db")
+		dbCol := getDbTagCol(dbTag)
+		if dbCol == "" { //兼容json标签
+			jsonTag := ft.Tag.Get("json")
+			if jsonTag != "" {
+				dbCol = strings.Split(jsonTag, ",")[0]
+			}
+		}
+		if ft.Tag.Get("pk") == "true" || isPkOrAi(dbTag, "pk") {
+			if dbCol != "" {
+				return dbCol
 			}
 			return fieldName2ColName(ft.Name)
 		}
@@ -380,10 +403,17 @@ func getOrColumnsByType(t reflect.Type) (string, string, []*orColumn) {
 				panic(errors.New("unsupported or tag: " + orTag + ", only support has_one, has_many and belongs_to for now"))
 			}
 		}
-		if ft.Tag.Get("pk") == "true" {
-			if ft.Tag.Get("db") != "" {
-				pkCol = ft.Tag.Get("db")
-			} else {
+		dbTag := ft.Tag.Get("db")
+		dbCol := getDbTagCol(dbTag)
+		if dbCol == "" { //兼容json标签
+			jsonTag := ft.Tag.Get("json")
+			if jsonTag != "" {
+				dbCol = strings.Split(jsonTag, ",")[0]
+			}
+		}
+		if ft.Tag.Get("pk") == "true" || isPkOrAi(dbTag, "pk") {
+			pkCol = dbCol
+			if pkCol == "" {
 				pkCol = fieldName2ColName(ft.Name)
 			}
 			pkField = ft.Name
@@ -790,14 +820,8 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 		v := reflect.New(t)
 		if isPtr {
 			targets := make([]interface{}, len(cols))
-			dbTags := make(map[string]string, len(cols))
 			//修改映射关系
-			for k := 0; k < t.NumField(); k++ {
-				ft := t.Field(k)
-				if ft.Tag.Get("db") != "" { //获取struct中的db标签组成字典，在后面更新中，只要字典存在的值，就进行替换
-					dbTags[ft.Tag.Get("db")] = ft.Name
-				}
-			}
+			dbTags := getDbTagMap(t, len(cols))
 			for k, c := range cols {
 				fName := ""
 				if temp, ok := dbTags[c]; ok {
@@ -953,13 +977,20 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 	//反射遍历整个struct找到主键和主键的值，一般都是第一个
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
-		if ft.Tag.Get("pk") == "true" {
+		//先匹配db中的pk
+		dbTag := ft.Tag.Get("db")
+		dbCol := getDbTagCol(dbTag)
+		jsonTag := strings.Split(ft.Tag.Get("json"), ",")[0]
+		if ft.Tag.Get("pk") == "true" || isPkOrAi(dbTag, "pk") {
 			pk = v.Field(k)
-			pkName = ft.Tag.Get("db")
+			pkName = dbCol
+			if jsonTag != "" && pkName == "" {
+				pkName = jsonTag
+			}
 			if pkName == "" {
 				pkName = fieldName2ColName(ft.Name)
 			}
-			if ft.Tag.Get("ai") == "true" {
+			if ft.Tag.Get("ai") == "true" || isPkOrAi(dbTag, "ai") {
 				isAi = true
 			}
 			break
@@ -995,19 +1026,23 @@ func columnsByStruct(s interface{}) (string, string, []interface{}, reflect.Valu
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
 		//优先对标签进行处理，当没有找到标签时，就直接对struct的字段进行转化
-		str := ""
-		str = ft.Tag.Get("db")
+
+		dbTag := ft.Tag.Get("db")
+		str := getDbTagCol(dbTag)
 		if str == "" {
-			str = fieldName2ColName(ft.Name)
+			str = strings.Split(ft.Tag.Get("json"), ",")[0]
+			if str == "" {
+				str = fieldName2ColName(ft.Name)
+			}
 		}
 		//auto increment field
-		if ft.Tag.Get("pk") == "true" {
+		if ft.Tag.Get("pk") == "true" || isPkOrAi(dbTag, "pk") {
 			pk = v.Field(k)
-			pkName = ft.Tag.Get("db")
+			pkName = str
 			if pkName == "" {
 				pkName = fieldName2ColName(ft.Name)
 			}
-			if ft.Tag.Get("ai") == "true" {
+			if ft.Tag.Get("ai") == "true" || isPkOrAi(dbTag, "ai") {
 				isAi = true
 				continue
 			}
@@ -1044,13 +1079,13 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 	isFirst := true
 	for k := 0; k < t.NumField(); k++ {
 		ft := t.Field(k)
-		str := ""
-		str = ft.Tag.Get("db")
+		dbTag := ft.Tag.Get("db")
+		str := getDbTagCol(dbTag)
 		if str == "" {
 			str = fieldName2ColName(ft.Name)
 		}
-		if ft.Tag.Get("pk") == "true" {
-			if ft.Tag.Get("ai") == "true" {
+		if ft.Tag.Get("pk") == "true" || isPkOrAi(dbTag, "pk") {
+			if ft.Tag.Get("ai") == "true" || isPkOrAi(dbTag, "ai") {
 				continue
 			}
 		}
@@ -1081,10 +1116,10 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 		isFirst := true
 		for k := 0; k < t.NumField(); k++ {
 			ft := t.Field(k)
-
+			dbTag := ft.Tag.Get("db")
 			//auto increment field
-			if ft.Tag.Get("pk") == "true" {
-				if ft.Tag.Get("ai") == "true" {
+			if ft.Tag.Get("pk") == "true" || isPkOrAi(dbTag, "pk") {
+				if ft.Tag.Get("ai") == "true" || isPkOrAi(dbTag, "ai") {
 					pks[n] = v.Field(k)
 					ais[n] = true
 					continue

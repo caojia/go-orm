@@ -11,7 +11,7 @@ import (
 )
 
 type TestOrmA123 struct {
-	TestID      int64 `pk:"true" db:"test_id" ai:"true"`
+	TestID      int64 `json:"test_id" pk:"true" ai:"true" db:"test_id,ai,pk"`
 	OtherId     int64
 	Description string
 	Name        sql.NullString
@@ -34,7 +34,7 @@ type TestOrmB999 struct {
 }
 
 type TestOrmC111 struct {
-	TestOrmCId int64 `pk:"true" ai:"true"`
+	TestOrmCId int64 `db:"ai,pk"`
 	TestID     int64 `db:"test_id"`
 	Name       string
 }
