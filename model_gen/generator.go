@@ -425,15 +425,3 @@ func toCapitalCase(name string, firstLetterUpper bool) string {
 	}
 	return string(data[:endPos])
 }
-func isHanUpper(col string) bool {
-	return colName2FieldName(col) != toCapitalCase(col, true)
-}
-
-func colName2FieldName(buf string) string {
-	tks := strings.Split(buf, "_")
-	ret := ""
-	for _, tk := range tks {
-		ret += strings.Title(tk)
-	}
-	return ret
-}
