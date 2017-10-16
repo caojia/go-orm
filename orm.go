@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"reflect"
 	"regexp"
@@ -16,6 +15,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	_ "github.com/go-sql-driver/mysql"
 	//"strconv"
 	"encoding/json"
 	"strconv"
@@ -252,6 +253,7 @@ func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 	query, args = changeSQLIn(query, args...)
 	res, err := tdx.Exec(query, args...)
 	if err != nil { //更换处理方式，如果是err就直接打印err日志，不打印其他日志，不用多执行一遍exec
+		log.Printf("[sql err:]%s %v+", query, args)
 		return res, err
 	}
 	logPrint(sqlLogger, nil, time.Since(start), query, args...)
@@ -265,12 +267,14 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
 	if sqlLogger.ShowExplain() {
 		exp, err = doExplain(tdx, queryStr, args...)
 		if err != nil {
+			log.Printf("[sql err:] %s %v+", queryStr, args)
 			return nil, err
 		}
 	}
 	start := time.Now()
 	res, err := tdx.Query(queryStr, args...)
 	if err != nil {
+		log.Printf("[sql err:] %s %v+", queryStr, args)
 		return res, err
 	}
 	logPrint(sqlLogger, exp, time.Since(start), queryStr, args...)
