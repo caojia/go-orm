@@ -259,23 +259,23 @@ func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 	return res, err
 }
 
-func query(tdx Tdx, queryStr string, args ...interface{}) (*sql.Rows, error) {
+func query(tdx Tdx, queryStr string, args ...interface{}) (res *sql.Rows, err error) {
 	queryStr, args = changeSQLIn(queryStr, args...)
-	exp := &Explain{}
-	var err error
-	if sqlLogger.ShowExplain() {
+	start := time.Now()
+	if res, err = tdx.Query(queryStr, args...); err != nil {
+		return res, err
+	}
+	duration := time.Since(start)
+
+	var exp *Explain
+	if sqlLogger.ShowExplain() && (duration > 100 * time.Millisecond) {
 		exp, err = doExplain(tdx, queryStr, args...)
 		if err != nil {
 			return nil, err
 		}
 	}
-	start := time.Now()
-	res, err := tdx.Query(queryStr, args...)
-	if err != nil {
-		return res, err
-	}
-	logPrint(sqlLogger, exp, time.Since(start), queryStr, args...)
-	return res, err
+	logPrint(sqlLogger, exp, duration, queryStr, args...)
+	return res, nil
 }
 
 func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
