@@ -169,7 +169,7 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 type SqlLog struct {
 	Sql      string        `json:"sql"`
 	Duration time.Duration `json:"duration"`
-	Explain  *Explain      `json:"explain,omitempty"`
+	Explain  []*Explain      `json:"explain,omitempty"`
 }
 type Explain struct {
 	Table  string `json:"table,omitempty"`
@@ -195,7 +195,7 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 	return true
 }
 
-func logPrint(logger SqlLogger, exp *Explain, duration time.Duration, queryStr string, args ...interface{}) {
+func logPrint(logger SqlLogger, exp []*Explain, duration time.Duration, queryStr string, args ...interface{}) {
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
 	newArgs := make([]interface{}, 0)
 	for _, arg := range args {
@@ -215,7 +215,7 @@ func logPrint(logger SqlLogger, exp *Explain, duration time.Duration, queryStr s
 	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%+v", queryStr, newArgs), Explain: exp}
 	logger.Log(&sqlLog)
 }
-func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
+func doExplain(tdx Tdx, query string, args ...interface{}) ([]*Explain, error) {
 	explainStr := fmt.Sprintf("explain %s", query)
 	type explain struct {
 		Id           sql.NullInt64  `json:"id"`
@@ -236,17 +236,17 @@ func doExplain(tdx Tdx, query string, args ...interface{}) (*Explain, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var exp Explain
-	if rows.Next() {
+	var exp []*Explain
+	for ;rows.Next() ;{
 		e := explain{}
 		cols, err := rows.Columns()
 		err = reflectStruct(&e, cols, rows)
 		if err != nil {
 			log.Println("reflect err", err)
 		}
-		exp = Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String}
+		exp = append(exp, &Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String})
 	}
-	return &exp, nil
+	return exp, nil
 }
 func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 	start := time.Now()
@@ -267,8 +267,8 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (res *sql.Rows, err er
 	}
 	duration := time.Since(start)
 
-	var exp *Explain
-	if sqlLogger.ShowExplain() && (duration > 100 * time.Millisecond) {
+	var exp []*Explain
+	if sqlLogger.ShowExplain() && (duration > 200 * time.Millisecond) {
 		exp, err = doExplain(tdx, queryStr, args...)
 		if err != nil {
 			return nil, err
