@@ -18,6 +18,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	//"strconv"
+	"context"
 	"encoding/json"
 	"strconv"
 )
@@ -169,7 +170,7 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 type SqlLog struct {
 	Sql      string        `json:"sql"`
 	Duration time.Duration `json:"duration"`
-	Explain  []*Explain      `json:"explain,omitempty"`
+	Explain  []*Explain    `json:"explain,omitempty"`
 }
 type Explain struct {
 	Table  string `json:"table,omitempty"`
@@ -181,12 +182,12 @@ type Explain struct {
 	Extra  string `json:"extra,omitempty"`
 }
 type SqlLogger interface {
-	Log(sqlLog *SqlLog)
+	Log(c context.Context, sqlLog *SqlLog)
 	ShowExplain() bool
 }
 type VerboseSqlLogger struct{}
 
-func (n *VerboseSqlLogger) Log(sqlLog *SqlLog) {
+func (n *VerboseSqlLogger) Log(c context.Context, sqlLog *SqlLog) {
 	data, _ := json.Marshal(sqlLog)
 	log.Printf("[go-orm] %v\n", string(data))
 }
@@ -195,7 +196,7 @@ func (n *VerboseSqlLogger) ShowExplain() bool {
 	return true
 }
 
-func logPrint(logger SqlLogger, exp []*Explain, duration time.Duration, queryStr string, args ...interface{}) {
+func logPrint(c context.Context, logger SqlLogger, exp []*Explain, duration time.Duration, queryStr string, args ...interface{}) {
 	queryStr = regexp.MustCompile("\\s+").ReplaceAllString(queryStr, " ")
 	newArgs := make([]interface{}, 0)
 	for _, arg := range args {
@@ -213,7 +214,7 @@ func logPrint(logger SqlLogger, exp []*Explain, duration time.Duration, queryStr
 		}
 	}
 	sqlLog := SqlLog{Duration: duration, Sql: fmt.Sprintf("%s%+v", queryStr, newArgs), Explain: exp}
-	logger.Log(&sqlLog)
+	logger.Log(c, &sqlLog)
 }
 func doExplain(tdx Tdx, query string, args ...interface{}) ([]*Explain, error) {
 	explainStr := fmt.Sprintf("explain %s", query)
@@ -237,7 +238,7 @@ func doExplain(tdx Tdx, query string, args ...interface{}) ([]*Explain, error) {
 	}
 	defer rows.Close()
 	var exp []*Explain
-	for ;rows.Next() ;{
+	for rows.Next() {
 		e := explain{}
 		cols, err := rows.Columns()
 		err = reflectStruct(&e, cols, rows)
@@ -248,18 +249,18 @@ func doExplain(tdx Tdx, query string, args ...interface{}) ([]*Explain, error) {
 	}
 	return exp, nil
 }
-func exec(tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
+func exec(c context.Context, tdx Tdx, query string, args ...interface{}) (sql.Result, error) {
 	start := time.Now()
 	query, args = changeSQLIn(query, args...)
 	res, err := tdx.Exec(query, args...)
 	if err != nil { //更换处理方式，如果是err就直接打印err日志，不打印其他日志，不用多执行一遍exec
 		return res, err
 	}
-	logPrint(sqlLogger, nil, time.Since(start), query, args...)
+	logPrint(c, sqlLogger, nil, time.Since(start), query, args...)
 	return res, err
 }
 
-func query(tdx Tdx, queryStr string, args ...interface{}) (res *sql.Rows, err error) {
+func query(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (res *sql.Rows, err error) {
 	queryStr, args = changeSQLIn(queryStr, args...)
 	start := time.Now()
 	if res, err = tdx.Query(queryStr, args...); err != nil {
@@ -268,17 +269,17 @@ func query(tdx Tdx, queryStr string, args ...interface{}) (res *sql.Rows, err er
 	duration := time.Since(start)
 
 	var exp []*Explain
-	if sqlLogger.ShowExplain() && (duration > 200 * time.Millisecond) {
+	if sqlLogger.ShowExplain() && (duration > 200*time.Millisecond) {
 		exp, err = doExplain(tdx, queryStr, args...)
 		if err != nil {
 			return nil, err
 		}
 	}
-	logPrint(sqlLogger, exp, duration, queryStr, args...)
+	logPrint(c, sqlLogger, exp, duration, queryStr, args...)
 	return res, nil
 }
 
-func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
+func execWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
 	params := sqlParamReg.FindAllString(paramQuery, -1)
 	log.Println(params)
 	if params != nil && len(params) > 0 {
@@ -292,14 +293,14 @@ func execWithParam(tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result
 			args = append(args, value)
 		}
 		paramQuery = sqlParamReg.ReplaceAllLiteralString(paramQuery, "?")
-		return exec(tdx, paramQuery, args...)
+		return exec(c, tdx, paramQuery, args...)
 	} else {
-		return exec(tdx, paramQuery)
+		return exec(c, tdx, paramQuery)
 	}
 }
 
-func execWithRowAffectCheck(tdx Tdx, expectRows int64, query string, args ...interface{}) error {
-	ret, err := exec(tdx, query, args...)
+func execWithRowAffectCheck(c context.Context, tdx Tdx, expectRows int64, query string, args ...interface{}) error {
+	ret, err := exec(c, tdx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -440,18 +441,18 @@ func getTableName(s interface{}) string {
 	return fieldName2ColName(ts.Name())
 }
 
-func selectByPK(tdx Tdx, s interface{}, pk interface{}) error {
+func selectByPK(c context.Context, tdx Tdx, s interface{}, pk interface{}) error {
 	pkName := getPKColumn(s)
 	tabName := getTableName(s)
 	if pkName == "" {
 		return errors.New(tabName + " does not have primary key")
 	}
-	return selectOne(tdx, s, fmt.Sprintf("select * from %s where %s = ?", tabName, pkName), pk)
+	return selectOne(c, tdx, s, fmt.Sprintf("select * from %s where %s = ?", tabName, pkName), pk)
 }
 
-func selectOne(tdx Tdx, s interface{}, query string, args ...interface{}) error {
+func selectOne(c context.Context, tdx Tdx, s interface{}, query string, args ...interface{}) error {
 	// One time there only can be one active sql Rows query
-	err := selectOneInternal(tdx, s, query, args...)
+	err := selectOneInternal(c, tdx, s, query, args...)
 	if err != nil {
 		return err
 	}
@@ -464,13 +465,13 @@ func selectOne(tdx Tdx, s interface{}, query string, args ...interface{}) error 
 		}
 		for _, orCol := range orColumns {
 			if orCol.or == "has_one" {
-				err = processOrHasOneRelation(tdx, orCol, v, pkCol, pkValue)
+				err = processOrHasOneRelation(c, tdx, orCol, v, pkCol, pkValue)
 				if err != nil {
 					return err
 				}
 			} else if orCol.or == "has_many" {
 				orField := v.FieldByName(orCol.fieldName)
-				err = selectManyInternal(tdx, orField.Addr().Interface(), false,
+				err = selectManyInternal(c, tdx, orField.Addr().Interface(), false,
 					"SELECT * FROM "+orCol.table+" WHERE "+pkCol+" = ?", pkValue)
 				if err != nil {
 					return err
@@ -484,7 +485,7 @@ func selectOne(tdx Tdx, s interface{}, query string, args ...interface{}) error 
 				if err != nil {
 					return err
 				}
-				err = processOrBelongsToRelation(tdx, orCol, v, fk, fkValue)
+				err = processOrBelongsToRelation(c, tdx, orCol, v, fk, fkValue)
 				if err != nil {
 					return err
 				}
@@ -494,8 +495,8 @@ func selectOne(tdx Tdx, s interface{}, query string, args ...interface{}) error 
 	return nil
 }
 
-func selectOneInternal(tdx Tdx, s interface{}, queryStr string, args ...interface{}) error {
-	rows, err := query(tdx, queryStr, args...)
+func selectOneInternal(c context.Context, tdx Tdx, s interface{}, queryStr string, args ...interface{}) error {
+	rows, err := query(c, tdx, queryStr, args...)
 	if err != nil {
 		return err
 	}
@@ -516,9 +517,9 @@ func selectOneInternal(tdx Tdx, s interface{}, queryStr string, args ...interfac
 	return nil
 }
 
-func processOrHasOneRelation(tdx Tdx, orCol *orColumn, v reflect.Value, pkCol string, pkValue interface{}) error {
+func processOrHasOneRelation(c context.Context, tdx Tdx, orCol *orColumn, v reflect.Value, pkCol string, pkValue interface{}) error {
 	queryStr := fmt.Sprintf("SELECT * FROM `%s` WHERE `%s` = ? LIMIT 1", orCol.table, pkCol)
-	rows, err := query(tdx, queryStr, pkValue)
+	rows, err := query(c, tdx, queryStr, pkValue)
 	if err != nil {
 		return err
 	}
@@ -541,9 +542,9 @@ func processOrHasOneRelation(tdx Tdx, orCol *orColumn, v reflect.Value, pkCol st
 	return nil
 }
 
-func processOrBelongsToRelation(tdx Tdx, orCol *orColumn, v reflect.Value, fk string, fkValue interface{}) error {
+func processOrBelongsToRelation(c context.Context, tdx Tdx, orCol *orColumn, v reflect.Value, fk string, fkValue interface{}) error {
 	queryStr := fmt.Sprintf("SELECT * FROM %s WHERE %s = ? LIMIT 1", orCol.table, fk)
-	orRows, err := query(tdx, queryStr, fkValue)
+	orRows, err := query(c, tdx, queryStr, fkValue)
 	if err != nil {
 		return err
 	}
@@ -567,8 +568,8 @@ func processOrBelongsToRelation(tdx Tdx, orCol *orColumn, v reflect.Value, fk st
 	return nil
 }
 
-func selectStr(tdx Tdx, queryStr string, args ...interface{}) (string, error) {
-	rows, err := query(tdx, queryStr, args...)
+func selectStr(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (string, error) {
+	rows, err := query(c, tdx, queryStr, args...)
 	if err != nil {
 		return "", err
 	}
@@ -582,8 +583,8 @@ func selectStr(tdx Tdx, queryStr string, args ...interface{}) (string, error) {
 	return ret, err
 }
 
-func selectInt(tdx Tdx, queryStr string, args ...interface{}) (int64, error) {
-	rows, err := query(tdx, queryStr, args...)
+func selectInt(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (int64, error) {
+	rows, err := query(c, tdx, queryStr, args...)
 	var ret int64
 	if err != nil {
 		return ret, err
@@ -640,8 +641,8 @@ func MapScan(r ColScanner, dest map[string]interface{}) error {
 	return r.Err()
 }*/
 
-func selectRawSet(tdx Tdx, queryStr string, columnMaps map[string]string, args ...interface{}) ([]map[string]interface{}, error) {
-	rows, err := query(tdx, queryStr, args...)
+func selectRawSet(c context.Context, tdx Tdx, queryStr string, columnMaps map[string]string, args ...interface{}) ([]map[string]interface{}, error) {
+	rows, err := query(c, tdx, queryStr, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -683,9 +684,9 @@ func selectRawSet(tdx Tdx, queryStr string, columnMaps map[string]string, args .
 	return dataSet, nil
 }
 
-func selectRaw(tdx Tdx, queryStr string, args ...interface{}) ([]string, [][]interface{}, error) {
+func selectRaw(c context.Context, tdx Tdx, queryStr string, args ...interface{}) ([]string, [][]interface{}, error) {
 
-	rows, err := query(tdx, queryStr, args...)
+	rows, err := query(c, tdx, queryStr, args...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -736,7 +737,7 @@ func selectRaw(tdx Tdx, queryStr string, args ...interface{}) ([]string, [][]int
 	return colNames, data, nil
 }
 
-func selectRawWithParam(tdx Tdx, paramQuery string, paramMap interface{}) ([]string, [][]interface{}, error) {
+func selectRawWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap interface{}) ([]string, [][]interface{}, error) {
 	params := sqlParamReg.FindAllString(paramQuery, -1)
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
@@ -749,14 +750,14 @@ func selectRawWithParam(tdx Tdx, paramQuery string, paramMap interface{}) ([]str
 			args = append(args, value)
 		}
 		paramQuery = sqlParamReg.ReplaceAllLiteralString(paramQuery, "?")
-		return selectRaw(tdx, paramQuery, args...)
+		return selectRaw(c, tdx, paramQuery, args...)
 	} else {
-		return selectRaw(tdx, paramQuery)
+		return selectRaw(c, tdx, paramQuery)
 	}
 }
 
-func selectRawSetWithParam(tdx Tdx, paramQuery string, paramMap interface{}) ([]map[string]interface{}, error) {
-	headers, rows, err := selectRawWithParam(tdx, paramQuery, paramMap)
+func selectRawSetWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap interface{}) ([]map[string]interface{}, error) {
+	headers, rows, err := selectRawWithParam(c, tdx, paramQuery, paramMap)
 	if err != nil {
 		return nil, err
 	}
@@ -770,12 +771,12 @@ func selectRawSetWithParam(tdx Tdx, paramQuery string, paramMap interface{}) ([]
 	return results, nil
 }
 
-func selectMany(tdx Tdx, s interface{}, query string, args ...interface{}) error {
-	return selectManyInternal(tdx, s, true, query, args...)
+func selectMany(c context.Context, tdx Tdx, s interface{}, query string, args ...interface{}) error {
+	return selectManyInternal(c, tdx, s, true, query, args...)
 }
 
 //搜索一个数组，并支持关联，当搜索单数组
-func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string, args ...interface{}) error {
+func selectManyInternal(c context.Context, tdx Tdx, s interface{}, processOr bool, queryStr string, args ...interface{}) error {
 	t, err := toSliceType(s)
 	if err != nil {
 		return err
@@ -804,7 +805,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 	}
 	//进行查询
 	sliceValue := reflect.Indirect(reflect.ValueOf(s))
-	rows, err := query(tdx, queryStr, args...)
+	rows, err := query(c, tdx, queryStr, args...)
 	if err != nil {
 		return err
 	}
@@ -887,7 +888,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 					i = i + 1
 				}
 				sqlQuery = makeString("SELECT * FROM "+orCol.table+" WHERE "+fk+" in (", ",", ")", fkValues)
-				orRows, err := query(tdx, sqlQuery)
+				orRows, err := query(c, tdx, sqlQuery)
 
 				if err != nil {
 					return err
@@ -916,7 +917,7 @@ func selectManyInternal(tdx Tdx, s interface{}, processOr bool, queryStr string,
 			} else {
 				sqlQuery = makeString("SELECT * FROM "+orCol.table+" WHERE "+pkCol+" in (",
 					",", ")", keys)
-				orRows, err := query(tdx, sqlQuery)
+				orRows, err := query(c, tdx, sqlQuery)
 
 				if err != nil {
 					return err
@@ -1150,10 +1151,10 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 	return cols, vals.String(), ret, pks, ais
 }
 
-func insert(tdx Tdx, s interface{}) error {
+func insert(c context.Context, tdx Tdx, s interface{}) error {
 	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
 	q := fmt.Sprintf("insert into %s (%s) values(%s)", getTableName(s), cols, vals)
-	ret, err := exec(tdx, q, ifs...)
+	ret, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
 	}
@@ -1168,7 +1169,7 @@ func insert(tdx Tdx, s interface{}) error {
 }
 
 //更新或者插入，on duplicate key,	其中keys只支持写入数据库对应的字段
-func insertOrUpdate(tdx Tdx, s interface{}, fields []string) error {
+func insertOrUpdate(c context.Context, tdx Tdx, s interface{}, fields []string) error {
 	cols, vals, ifs, pk, isAi, pkName := columnsByStruct(s)
 	//重复时，需要更新的字段
 	for k, v := range fields {
@@ -1183,7 +1184,7 @@ func insertOrUpdate(tdx Tdx, s interface{}, fields []string) error {
 		ifs = append(ifs, pk.Addr().Interface())
 	}
 	q := fmt.Sprintf("insert into %s (%s) values (%s) on duplicate key update %s", getTableName(s), cols, vals, strings.Join(fields, ","))
-	ret, err := exec(tdx, q, ifs...)
+	ret, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
 	}
@@ -1198,7 +1199,7 @@ func insertOrUpdate(tdx Tdx, s interface{}, fields []string) error {
 }
 
 //通过传递需要更新的字段,去更新部分字段
-func updateFieldsByPK(tdx Tdx, s interface{}, cols []string) error {
+func updateFieldsByPK(c context.Context, tdx Tdx, s interface{}, cols []string) error {
 	ifs, pk, _, pkName := columnsByStructFields(s, cols)
 	cs := make([]string, 0)
 	for _, col := range cols {
@@ -1206,14 +1207,14 @@ func updateFieldsByPK(tdx Tdx, s interface{}, cols []string) error {
 	}
 	sv := strings.Join(cs, ",")
 	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
-	_, err := exec(tdx, q, ifs...)
+	_, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func updateByPK(tdx Tdx, s interface{}) error {
+func updateByPK(c context.Context, tdx Tdx, s interface{}) error {
 	colStr, _, ifs, pk, _, pkName := columnsByStruct(s)
 	cols := strings.Split(colStr, ",")
 	cs := make([]string, 0)
@@ -1222,14 +1223,14 @@ func updateByPK(tdx Tdx, s interface{}) error {
 	}
 	sv := strings.Join(cs, ",")
 	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
-	_, err := exec(tdx, q, ifs...)
+	_, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func insertBatch(tdx Tdx, s []interface{}) error {
+func insertBatch(c context.Context, tdx Tdx, s []interface{}) error {
 	if s == nil || len(s) == 0 {
 		return nil
 	}
@@ -1237,7 +1238,7 @@ func insertBatch(tdx Tdx, s []interface{}) error {
 	cols, vals, ifs, pks, ais := columnsBySlice(s)
 
 	q := fmt.Sprintf("insert into %s %s values %s", getTableName(s[0]), cols, vals)
-	ret, err := exec(tdx, q, ifs...)
+	ret, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
 	}
@@ -1255,6 +1256,7 @@ func insertBatch(tdx Tdx, s []interface{}) error {
 }
 
 type ORMer interface {
+	WithContext(c context.Context) ORMer
 	SelectOne(interface{}, string, ...interface{}) error
 	SelectByPK(interface{}, interface{}) error
 	Select(interface{}, string, ...interface{}) error
@@ -1272,9 +1274,18 @@ type ORMer interface {
 }
 
 type ORM struct {
+	ctx context.Context
+
 	db *sql.DB
 
 	tables map[string]interface{}
+}
+
+func (o *ORM) WithContext(c context.Context) *ORM {
+	no := new(ORM)
+	*no = *o
+	no.ctx = c
+	return no
 }
 
 func NewORM(ds string) *ORM {
@@ -1347,79 +1358,82 @@ func (o *ORM) TruncateTables() error {
 
 func (o *ORM) Begin() (*ORMTran, error) {
 	tx, err := o.db.Begin()
-	return &ORMTran{tx: tx}, err
+	return &ORMTran{
+		ctx: o.ctx,
+		tx:  tx,
+	}, err
 }
 
 func (o *ORM) SelectOne(s interface{}, query string, args ...interface{}) error {
-	return selectOne(o.db, s, query, args...)
+	return selectOne(o.ctx, o.db, s, query, args...)
 }
 
 func (o *ORM) SelectByPK(s interface{}, pk interface{}) error {
-	return selectByPK(o.db, s, pk)
+	return selectByPK(o.ctx, o.db, s, pk)
 }
 
 func (o *ORM) Select(s interface{}, query string, args ...interface{}) error {
-	return selectMany(o.db, s, query, args...)
+	return selectMany(o.ctx, o.db, s, query, args...)
 }
 
 func (o *ORM) SelectRawSet(query string, columnMaps map[string]string, args ...interface{}) ([]map[string]interface{}, error) {
-	return selectRawSet(o.db, query, columnMaps, args...)
+	return selectRawSet(o.ctx, o.db, query, columnMaps, args...)
 }
 
 func (o *ORM) SelectRaw(query string, args ...interface{}) ([]string, [][]interface{}, error) {
-	return selectRaw(o.db, query, args...)
+	return selectRaw(o.ctx, o.db, query, args...)
 }
 
 func (o *ORM) SelectRawWithParam(paramQuery string, paramMap interface{}) ([]string, [][]interface{}, error) {
-	return selectRawWithParam(o.db, paramQuery, paramMap)
+	return selectRawWithParam(o.ctx, o.db, paramQuery, paramMap)
 }
 
 func (o *ORM) SelectRawSetWithParam(paramQuery string, paramMap interface{}) ([]map[string]interface{}, error) {
-	return selectRawSetWithParam(o.db, paramQuery, paramMap)
+	return selectRawSetWithParam(o.ctx, o.db, paramQuery, paramMap)
 }
 
 func (o *ORM) SelectStr(query string, args ...interface{}) (string, error) {
-	return selectStr(o.db, query, args...)
+	return selectStr(o.ctx, o.db, query, args...)
 }
 
 func (o *ORM) SelectInt(query string, args ...interface{}) (int64, error) {
-	return selectInt(o.db, query, args...)
+	return selectInt(o.ctx, o.db, query, args...)
 }
 
 func (o *ORM) UpdateByPK(s interface{}) error {
-	return updateByPK(o.db, s)
+	return updateByPK(o.ctx, o.db, s)
 }
 
 //在数据库字段和struct字段不是以驼峰表示法对应的时候就会报错，建议填入数据库对应的字段
 func (o *ORM) UpdateFieldsByPK(s interface{}, fields []string) error {
-	return updateFieldsByPK(o.db, s, fields)
+	return updateFieldsByPK(o.ctx, o.db, s, fields)
 }
 
 func (o *ORM) Insert(s interface{}) error {
-	return insert(o.db, s)
+	return insert(o.ctx, o.db, s)
 }
 
 func (o *ORM) InsertBatch(s []interface{}) error {
-	return insertBatch(o.db, s)
+	return insertBatch(o.ctx, o.db, s)
 }
 
 func (o *ORM) InsertOrUpdate(s interface{}, keys []string) error {
-	return insertOrUpdate(o.db, s, keys)
+	return insertOrUpdate(o.ctx, o.db, s, keys)
 }
 
 func (o *ORM) ExecWithRowAffectCheck(n int64, query string, args ...interface{}) error {
-	return execWithRowAffectCheck(o.db, n, query, args...)
+	return execWithRowAffectCheck(o.ctx, o.db, n, query, args...)
 }
 
 func (o *ORM) Exec(query string, args ...interface{}) (sql.Result, error) {
-	return exec(o.db, query, args...)
+	return exec(o.ctx, o.db, query, args...)
 }
 func (o *ORM) Query(queryStr string, args ...interface{}) (*sql.Rows, error) {
-	return query(o.db, queryStr, args...)
+	return query(o.ctx, o.db, queryStr, args...)
 }
 
 func (o *ORM) ExecWithParam(paramQuery string, paramMap interface{}) (sql.Result, error) {
-	return execWithParam(o.db, paramQuery, paramMap)
+	return execWithParam(o.ctx, o.db, paramQuery, paramMap)
 }
 
 func getFieldValue(param interface{}, fieldName string) (interface{}, error) {
@@ -1489,39 +1503,40 @@ func (o *ORM) DoTransactionMore(f func(*ORMTran) (interface{}, error)) (interfac
 }
 
 type ORMTran struct {
-	tx *sql.Tx
+	ctx context.Context
+	tx  *sql.Tx
 }
 
 func (o *ORMTran) SelectOne(s interface{}, query string, args ...interface{}) error {
-	return selectOne(o.tx, s, query, args...)
+	return selectOne(o.ctx, o.tx, s, query, args...)
 }
 
 func (o *ORMTran) Insert(s interface{}) error {
-	return insert(o.tx, s)
+	return insert(o.ctx, o.tx, s)
 }
 
 func (o *ORMTran) InsertOrUpdate(s interface{}, keys []string) error {
-	return insertOrUpdate(o.tx, s, keys)
+	return insertOrUpdate(o.ctx, o.tx, s, keys)
 }
 
 func (o *ORMTran) InsertBatch(s []interface{}) error {
-	return insertBatch(o.tx, s)
+	return insertBatch(o.ctx, o.tx, s)
 }
 
 func (o *ORMTran) UpdateByPK(s interface{}) error {
-	return updateByPK(o.tx, s)
+	return updateByPK(o.ctx, o.tx, s)
 }
 
 //在数据库字段和struct字段不是以驼峰表示法对应的时候就会报错，建议填入数据库对应的字段
 func (o *ORMTran) UpdateFieldsByPK(s interface{}, fields []string) error {
-	return updateFieldsByPK(o.tx, s, fields)
+	return updateFieldsByPK(o.ctx, o.tx, s, fields)
 }
 func (o *ORMTran) Exec(query string, args ...interface{}) (sql.Result, error) {
-	return exec(o.tx, query, args...)
+	return exec(o.ctx, o.tx, query, args...)
 }
 
 func (o *ORMTran) Query(queryStr string, args ...interface{}) (*sql.Rows, error) {
-	return query(o.tx, queryStr, args...)
+	return query(o.ctx, o.tx, queryStr, args...)
 }
 
 func (o *ORMTran) Commit() error {
@@ -1533,27 +1548,27 @@ func (o *ORMTran) Rollback() error {
 }
 
 func (o *ORMTran) SelectByPK(s interface{}, pk interface{}) error {
-	return selectByPK(o.tx, s, pk)
+	return selectByPK(o.ctx, o.tx, s, pk)
 }
 
 func (o *ORMTran) Select(s interface{}, query string, args ...interface{}) error {
-	return selectMany(o.tx, s, query, args...)
+	return selectMany(o.ctx, o.tx, s, query, args...)
 }
 
 func (o *ORMTran) SelectInt(query string, args ...interface{}) (int64, error) {
-	return selectInt(o.tx, query, args...)
+	return selectInt(o.ctx, o.tx, query, args...)
 }
 
 func (o *ORMTran) SelectStr(query string, args ...interface{}) (string, error) {
-	return selectStr(o.tx, query, args...)
+	return selectStr(o.ctx, o.tx, query, args...)
 }
 
 func (o *ORMTran) ExecWithParam(paramQuery string, paramMap interface{}) (sql.Result, error) {
-	return execWithParam(o.tx, paramQuery, paramMap)
+	return execWithParam(o.ctx, o.tx, paramQuery, paramMap)
 }
 
 func (o *ORMTran) ExecWithRowAffectCheck(n int64, query string, args ...interface{}) error {
-	return execWithRowAffectCheck(o.tx, n, query, args...)
+	return execWithRowAffectCheck(o.ctx, o.tx, n, query, args...)
 }
 
 func NormalizeValue(valueType string, value interface{}) (interface{}, error) {
