@@ -11,7 +11,7 @@ import (
 )
 
 type TestOrmA123 struct {
-	TestID      int64 `json:"test_id" pk:"true" ai:"true" db:"test_id,ai,pk"`
+	TestID      int64          `json:"test_id" pk:"true" ai:"true" db:"test_id,ai,pk"`
 	OtherId     int64
 	Description string
 	Name        sql.NullString
@@ -26,7 +26,7 @@ type TestOrmA123 struct {
 }
 
 type TestOrmB999 struct {
-	NoAiId      int64 `pk:"true"`
+	NoAiId      int64     `pk:"true"`
 	Description string
 	TestID      int64     `db:"test_id"`
 	CreatedAt   time.Time `ignore:"true"`
@@ -45,7 +45,7 @@ type TestOrmD222 struct {
 }
 
 type TestOrmE333 struct {
-	TestOrmEId  int64 `pk:"true" ai:"true"`
+	TestOrmEId  int64     `pk:"true" ai:"true"`
 	Name        string
 	Description sql.NullString
 	VInt64      int64
@@ -183,6 +183,29 @@ func TestSelectArr(t *testing.T) {
 		var arr []int
 		err := orm.Select(&arr, "select test_id from test_orm_a123 where other_id = 1")
 		if err != nil {
+			t.Error(err)
+		}
+		log.Println(arr)
+	})
+}
+
+func TestInsert(t *testing.T) {
+	oneTestScope(func(orm *ORM, testTableName string) {
+
+		testObj := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+		err := orm.InsertWithTable(testObj, "test_orm_a123")
+		if err != nil {
+			t.Error(err)
+		}
+
+		var arr []int
+		if orm.Select(&arr, "select test_id from test_orm_a123 where other_id = 1") != nil {
 			t.Error(err)
 		}
 		log.Println(arr)
@@ -418,7 +441,7 @@ func TestExecParam(t *testing.T) {
 			"id":          testObj.TestID,
 			"description": "lala",
 		}
-		_, err := orm.ExecWithParam("update "+testTableName+
+		_, err := orm.ExecWithParam("update " + testTableName+
 			" set other_id = #{otherId}, description = #{description} where test_id = #{id}", paramMap)
 		if err != nil {
 			t.Error("failed to update", err)
@@ -437,7 +460,7 @@ func TestExecParam(t *testing.T) {
 			"description": "test",
 		}
 
-		_, err = orm.ExecWithParam("update "+testTableName+
+		_, err = orm.ExecWithParam("update " + testTableName+
 			" set other_id = #{otherId} + 1, description = #{description} where other_id = #{otherId}", params2)
 		orm.SelectByPK(&loadedObj, testObj.TestID)
 
@@ -454,7 +477,7 @@ func TestExecParam(t *testing.T) {
 			StartDate:   time.Now(),
 			EndDate:     time.Now(),
 		}
-		_, err = orm.ExecWithParam("update "+testTableName+
+		_, err = orm.ExecWithParam("update " + testTableName+
 			" set other_id = #{OtherId}, description = #{Description}, name = #{Name} where test_id = #{TestID}", testParam)
 		if err != nil {
 			t.Error(err)
