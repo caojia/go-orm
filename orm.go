@@ -285,7 +285,7 @@ func execWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap inter
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
-			param = param[2 : len(param)-1]
+			param = param[2: len(param)-1]
 			value, err := getFieldValue(paramMap, param)
 			if err != nil {
 				return nil, err
@@ -742,7 +742,7 @@ func selectRawWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap 
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
-			param = param[2 : len(param)-1]
+			param = param[2: len(param)-1]
 			value, err := getFieldValue(paramMap, param)
 			if err != nil {
 				return nil, nil, err
@@ -1152,9 +1152,12 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 }
 
 func insert(c context.Context, tdx Tdx, s interface{}) error {
+	return Insert(c, tdx, getTableName(s), s)
+}
+
+func Insert(c context.Context, tdx Tdx, tableName string, s interface{}) error {
 	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
-	q := fmt.Sprintf("insert into %s (%s) values(%s)", getTableName(s), cols, vals)
-	ret, err := exec(c, tdx, q, ifs...)
+	ret, err := exec(c, tdx, fmt.Sprintf("insert into %s (%s) values(%s)", tableName, cols, vals), ifs...)
 	if err != nil {
 		return err
 	}
@@ -1411,6 +1414,10 @@ func (o *ORM) UpdateFieldsByPK(s interface{}, fields []string) error {
 
 func (o *ORM) Insert(s interface{}) error {
 	return insert(o.ctx, o.db, s)
+}
+
+func (o *ORM) InsertWithTable(s interface{}, tableName string) error {
+	return Insert(o.ctx, o.db, tableName, s)
 }
 
 func (o *ORM) InsertBatch(s []interface{}) error {
