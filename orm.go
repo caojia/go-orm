@@ -1152,10 +1152,10 @@ func columnsBySlice(s []interface{}) (string, string, []interface{}, []reflect.V
 }
 
 func insert(c context.Context, tdx Tdx, s interface{}) error {
-	return Insert(c, tdx, getTableName(s), s)
+	return insertByTable(c, tdx, getTableName(s), s)
 }
 
-func Insert(c context.Context, tdx Tdx, tableName string, s interface{}) error {
+func insertByTable(c context.Context, tdx Tdx, tableName string, s interface{}) error {
 	cols, vals, ifs, pk, isAi, _ := columnsByStruct(s)
 	ret, err := exec(c, tdx, fmt.Sprintf("insert into %s (%s) values(%s)", tableName, cols, vals), ifs...)
 	if err != nil {
@@ -1417,7 +1417,7 @@ func (o *ORM) Insert(s interface{}) error {
 }
 
 func (o *ORM) InsertWithTable(s interface{}, tableName string) error {
-	return Insert(o.ctx, o.db, tableName, s)
+	return insertByTable(o.ctx, o.db, tableName, s)
 }
 
 func (o *ORM) InsertBatch(s []interface{}) error {
