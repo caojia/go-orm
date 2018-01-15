@@ -285,7 +285,7 @@ func execWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap inter
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
-			param = param[2: len(param)-1]
+			param = param[2 : len(param)-1]
 			value, err := getFieldValue(paramMap, param)
 			if err != nil {
 				return nil, err
@@ -742,7 +742,7 @@ func selectRawWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap 
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
-			param = param[2: len(param)-1]
+			param = param[2 : len(param)-1]
 			value, err := getFieldValue(paramMap, param)
 			if err != nil {
 				return nil, nil, err
@@ -1201,6 +1201,38 @@ func insertOrUpdate(c context.Context, tdx Tdx, s interface{}, fields []string) 
 	return nil
 }
 
+func insertOrUpdateByTable(c context.Context, tdx Tdx, tbName string, s interface{}, fields []string) error {
+	cols, vals, ifs, pk, isAi, pkName := columnsByStruct(s)
+	if len(fields) == 0 {
+		fields = strings.Split(cols, ",")
+	}
+	//重复时，需要更新的字段
+	for k, v := range fields {
+		v = fieldName2ColName(v)
+		str := fmt.Sprintf("%s=values(%s)", v, v)
+		fields[k] = str
+	}
+	//检查主键的情况，在insert中加入主键
+	if pk.Addr().Interface != nil {
+		cols += fmt.Sprintf(",%s", pkName)
+		vals += ",?"
+		ifs = append(ifs, pk.Addr().Interface())
+	}
+	q := fmt.Sprintf("insert into %s (%s) values (%s) on duplicate key update %s", tbName, cols, vals, strings.Join(fields, ","))
+	ret, err := exec(c, tdx, q, ifs...)
+	if err != nil {
+		return err
+	}
+	if isAi {
+		lid, err := ret.LastInsertId()
+		if err != nil {
+			return err
+		}
+		pk.SetInt(lid)
+	}
+	return nil
+}
+
 //通过传递需要更新的字段,去更新部分字段
 func updateFieldsByPK(c context.Context, tdx Tdx, s interface{}, cols []string) error {
 	ifs, pk, _, pkName := columnsByStructFields(s, cols)
@@ -1425,7 +1457,11 @@ func (o *ORM) InsertBatch(s []interface{}) error {
 }
 
 func (o *ORM) InsertOrUpdate(s interface{}, keys []string) error {
-	return insertOrUpdate(o.ctx, o.db, s, keys)
+	return insertOrUpdateByTable(o.ctx, o.db, getTableName(s), s, keys)
+}
+
+func (o *ORM) InsertOrUpdateWithTable(s interface{}, tbName string, keys []string) error {
+	return insertOrUpdateByTable(o.ctx, o.db, tbName, s, keys)
 }
 
 func (o *ORM) ExecWithRowAffectCheck(n int64, query string, args ...interface{}) error {
