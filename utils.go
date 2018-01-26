@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"regexp"
 )
 
 //替换query 中？？为长度为len的？
@@ -39,6 +40,24 @@ func changeSQLIn(sql string, args ...interface{}) (string, []interface{}) {
 		newArgs = append(newArgs, args...)
 	}
 	return sql, newArgs
+}
+
+//检测select 的sql中的select函数时候存在limit，0表示就补上limit 2000，1表示补上limit 1
+func AddLimit(sql string,limitStatus int)(string,error){
+	//判断select是否有limit这个关键字,检查子查询
+	if ok,_:=regexp.MatchString(`(?i)limit([A-Za-z0-9]|\s|\n)+`,sql);ok{
+		return sql,nil
+	}
+	limitArr :=""
+	//最后一个批配项
+	switch limitStatus {
+	case 0:
+		limitArr =" LIMIT 2000 "
+	case 1:
+		limitArr =" LIMIT 1 "
+	}
+	sql = sql + limitArr
+	return sql,nil
 }
 
 //判断主键和自增列是否存在，存在就返回true，否则返回false
@@ -181,5 +200,3 @@ func reflectListStructToMap(sarray interface{}) ([]map[string]interface{}, error
 
 	return ret, nil
 }
-
-//rows -> struct
