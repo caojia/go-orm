@@ -43,7 +43,7 @@ func changeSQLIn(sql string, args ...interface{}) (string, []interface{}) {
 }
 
 //检测select 的sql中的select函数时候存在limit，0表示就补上limit 2000，1表示补上limit 1
-func addLimit(sql string,limitStatus int)string{
+func addLimit(sql string, limitStatus int)string{
 	//判断select是否有limit这个关键字,检查子查询
 	if ok,_ := regexp.MatchString(`(?i)limit`,sql);ok{
 		return sql
