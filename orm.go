@@ -261,6 +261,7 @@ func exec(c context.Context, tdx Tdx, query string, args ...interface{}) (sql.Re
 }
 
 func query(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (res *sql.Rows, err error) {
+	queryStr = addLimit(queryStr, 0)
 	queryStr, args = changeSQLIn(queryStr, args...)
 	start := time.Now()
 	if res, err = tdx.Query(queryStr, args...); err != nil {
@@ -451,6 +452,7 @@ func selectByPK(c context.Context, tdx Tdx, s interface{}, pk interface{}) error
 }
 
 func selectOne(c context.Context, tdx Tdx, s interface{}, query string, args ...interface{}) error {
+	query = addLimit(query, 1)
 	// One time there only can be one active sql Rows query
 	err := selectOneInternal(c, tdx, s, query, args...)
 	if err != nil {
@@ -569,6 +571,7 @@ func processOrBelongsToRelation(c context.Context, tdx Tdx, orCol *orColumn, v r
 }
 
 func selectStr(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (string, error) {
+	queryStr = addLimit(queryStr, 1)
 	rows, err := query(c, tdx, queryStr, args...)
 	if err != nil {
 		return "", err
@@ -584,6 +587,7 @@ func selectStr(c context.Context, tdx Tdx, queryStr string, args ...interface{})
 }
 
 func selectInt(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (int64, error) {
+	queryStr = addLimit(queryStr, 1)
 	rows, err := query(c, tdx, queryStr, args...)
 	var ret int64
 	if err != nil {
@@ -772,6 +776,7 @@ func selectRawSetWithParam(c context.Context, tdx Tdx, paramQuery string, paramM
 }
 
 func selectMany(c context.Context, tdx Tdx, s interface{}, query string, args ...interface{}) error {
+	query = addLimit(query, 0)
 	return selectManyInternal(c, tdx, s, true, query, args...)
 }
 
