@@ -48,7 +48,8 @@ func addLimit(sql string, limitStatus int) string {
 	if ok, _ := regexp.MatchString(`(?i)limit`, sql); ok {
 		return sql
 	}
-	//最后一个批配项
+	sql = strings.TrimSuffix(sql, ";")
+	//最后一个匹配项
 	switch limitStatus {
 	case 0:
 		sql += " LIMIT 2000 "
