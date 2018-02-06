@@ -183,7 +183,7 @@ type Explain struct {
 }
 type SqlLogger interface {
 	Log(c context.Context, sqlLog *SqlLog)
-	ShowExplain() bool
+	ShowExplain(dur time.Duration) bool
 }
 type VerboseSqlLogger struct{}
 
@@ -192,8 +192,8 @@ func (n *VerboseSqlLogger) Log(c context.Context, sqlLog *SqlLog) {
 	log.Printf("[go-orm] %v\n", string(data))
 }
 
-func (n *VerboseSqlLogger) ShowExplain() bool {
-	return true
+func (n *VerboseSqlLogger) ShowExplain(dur time.Duration) bool {
+	return dur >= 200*time.Millisecond
 }
 
 func logPrint(c context.Context, logger SqlLogger, exp []*Explain, duration time.Duration, queryStr string, args ...interface{}) {
@@ -270,7 +270,7 @@ func query(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (re
 	duration := time.Since(start)
 
 	var exp []*Explain
-	if sqlLogger.ShowExplain() && (duration > 200*time.Millisecond) {
+	if sqlLogger.ShowExplain(duration) {
 		exp, err = doExplain(tdx, queryStr, args...)
 		if err != nil {
 			return nil, err
@@ -286,7 +286,7 @@ func execWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap inter
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
-			param = param[2: len(param)-1]
+			param = param[2 : len(param)-1]
 			value, err := getFieldValue(paramMap, param)
 			if err != nil {
 				return nil, err
@@ -746,7 +746,7 @@ func selectRawWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap 
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
-			param = param[2: len(param)-1]
+			param = param[2 : len(param)-1]
 			value, err := getFieldValue(paramMap, param)
 			if err != nil {
 				return nil, nil, err
