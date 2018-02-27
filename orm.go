@@ -1319,6 +1319,7 @@ func newORMWithDriver(ds string, driverName string) *ORM {
 	}
 	ret.db.SetMaxOpenConns(100)
 	ret.db.SetMaxIdleConns(5)
+	ret.db.SetConnMaxLifetime(time.Minute * 10)
 	return ret
 }
 
