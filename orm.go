@@ -286,7 +286,7 @@ func execWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap inter
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
-			param = param[2: len(param)-1]
+			param = param[2 : len(param)-1]
 			value, err := getFieldValue(paramMap, param)
 			if err != nil {
 				return nil, err
@@ -746,7 +746,7 @@ func selectRawWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap 
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
-			param = param[2: len(param)-1]
+			param = param[2 : len(param)-1]
 			value, err := getFieldValue(paramMap, param)
 			if err != nil {
 				return nil, nil, err

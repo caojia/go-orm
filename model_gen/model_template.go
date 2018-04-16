@@ -90,11 +90,11 @@ func TestInsertAndGet{{.Name}}(t *testing.T) {
 `
 
 var (
-	tmHeader        *template.Template
-	tmStruct        *template.Template
-	tmObjApi        *template.Template
-	tmTestHeader    *template.Template
-	tmTestCode      *template.Template
+	tmHeader     *template.Template
+	tmStruct     *template.Template
+	tmObjApi     *template.Template
+	tmTestHeader *template.Template
+	tmTestCode   *template.Template
 )
 
 func init() {
