@@ -3,8 +3,8 @@ package orm
 import (
 	"errors"
 	"reflect"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 //替换query 中？？为长度为len的？
@@ -48,7 +48,7 @@ func addLimit(sql string, limitStatus int) string {
 	if ok, _ := regexp.MatchString(`(?i)limit`, sql); ok {
 		return sql
 	}
-	sql = strings.TrimSuffix(sql, ";")
+	sql = strings.TrimSuffix(strings.TrimSpace(sql), ";")
 	//最后一个匹配项
 	switch limitStatus {
 	case 0:

@@ -712,10 +712,10 @@ func selectRaw(c context.Context, tdx Tdx, queryStr string, args ...interface{})
 		err = rows.Scan(itemList...)
 
 		if err != nil {
-			log.Println("%v, %v", err, rows)
+			log.Printf("%v, %v", err, rows)
 			return colNames, data, err
 		}
-		for k, _ := range colNames {
+		for k := range colNames {
 			switch t := (*itemList[k].(*interface{})).(type) {
 			case []uint8:
 				itemMap[k] = string(t[:])
@@ -744,7 +744,7 @@ func selectRaw(c context.Context, tdx Tdx, queryStr string, args ...interface{})
 func selectRawWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap interface{}) ([]string, [][]interface{}, error) {
 	params := sqlParamReg.FindAllString(paramQuery, -1)
 	if params != nil && len(params) > 0 {
-		var args []interface{} = make([]interface{}, 0, len(params))
+		var args = make([]interface{}, 0, len(params))
 		for _, param := range params {
 			param = param[2 : len(param)-1]
 			value, err := getFieldValue(paramMap, param)
@@ -755,9 +755,8 @@ func selectRawWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap 
 		}
 		paramQuery = sqlParamReg.ReplaceAllLiteralString(paramQuery, "?")
 		return selectRaw(c, tdx, paramQuery, args...)
-	} else {
-		return selectRaw(c, tdx, paramQuery)
 	}
+	return selectRaw(c, tdx, paramQuery)
 }
 
 func selectRawSetWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap interface{}) ([]map[string]interface{}, error) {
@@ -1186,7 +1185,7 @@ func insertOrUpdate(c context.Context, tdx Tdx, s interface{}, fields []string) 
 		fields[k] = str
 	}
 	//检查主键的情况，在insert中加入主键
-	if pk.Addr().Interface != nil {
+	if pk.Addr().Interface() != nil {
 		cols += fmt.Sprintf(",%s", pkName)
 		vals += ",?"
 		ifs = append(ifs, pk.Addr().Interface())
@@ -1214,7 +1213,7 @@ func updateFieldsByPK(c context.Context, tdx Tdx, s interface{}, cols []string) 
 		cs = append(cs, fieldName2ColName(col)+" = ?")
 	}
 	sv := strings.Join(cs, ",")
-	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	q := fmt.Sprintf("update %s set %s where %s = %v", getTableName(s), sv, pkName, pk)
 	_, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
@@ -1230,7 +1229,7 @@ func updateByPK(c context.Context, tdx Tdx, s interface{}) error {
 		cs = append(cs, col+" = ?")
 	}
 	sv := strings.Join(cs, ",")
-	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	q := fmt.Sprintf("update %s set %s where %s = %v", getTableName(s), sv, pkName, pk)
 	_, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
