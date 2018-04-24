@@ -211,6 +211,29 @@ func TestInsert(t *testing.T) {
 		log.Println(arr)
 	})
 }
+
+func TestSelectInt32(t *testing.T)  {
+	oneTestScope(func(orm *ORM, testTableName string) {
+		testObj := &TestOrmA123{
+			OtherId:     1,
+			TestOrmDId:  0,
+			Description: "update test ",
+			StartDate:   time.Now(),
+			EndDate:     time.Now(),
+		}
+
+		err := orm.Insert(testObj)
+		if err != nil {
+			t.Error(err)
+		}
+		var arr []int32
+		err =orm.Select(&arr,"select other_id from test_orm_a123 where other_id = ?",1)
+		if err != nil {
+			t.Error(err)
+		}
+		log.Println(err)
+	})
+}
 func TestORMExecIN(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		for i := 10; i > 0; i-- {

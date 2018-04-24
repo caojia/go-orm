@@ -723,6 +723,8 @@ func selectRaw(c context.Context, tdx Tdx, queryStr string, args ...interface{})
 				itemMap[k] = t.Format("2006-01-02 15:04:05")
 			case int64:
 				itemMap[k] = t
+			case int32:
+				itemMap[k] = t
 			case int:
 				itemMap[k] = t
 			case float32:
@@ -788,7 +790,7 @@ func selectManyInternal(c context.Context, tdx Tdx, s interface{}, processOr boo
 	}
 
 	if t.Kind() != reflect.Ptr && t.Kind() != reflect.Int64 && t.Kind() != reflect.String &&
-		t.Kind() != reflect.Int && t.Kind() != reflect.Bool && t.Kind() != reflect.Float64 &&
+		t.Kind() != reflect.Int && t.Kind() != reflect.Int32 && t.Kind() != reflect.Bool && t.Kind() != reflect.Float64 &&
 		t.Kind() != reflect.Float32 && t.Kind() != reflect.Uint64 && t.Kind() != reflect.Uint {
 		return errors.New("slice elements type " + t.Kind().String() + " not supported")
 	}
