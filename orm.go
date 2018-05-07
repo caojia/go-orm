@@ -712,7 +712,7 @@ func selectRaw(c context.Context, tdx Tdx, queryStr string, args ...interface{})
 		err = rows.Scan(itemList...)
 
 		if err != nil {
-			log.Println("%v, %v", err, rows)
+			log.Printf("%v, %v\n", err, rows)
 			return colNames, data, err
 		}
 		for k, _ := range colNames {
@@ -1188,7 +1188,7 @@ func insertOrUpdate(c context.Context, tdx Tdx, s interface{}, fields []string) 
 		fields[k] = str
 	}
 	//检查主键的情况，在insert中加入主键
-	if pk.Addr().Interface != nil {
+	if pk.Addr().Interface() != nil {
 		cols += fmt.Sprintf(",%s", pkName)
 		vals += ",?"
 		ifs = append(ifs, pk.Addr().Interface())
@@ -1216,7 +1216,7 @@ func updateFieldsByPK(c context.Context, tdx Tdx, s interface{}, cols []string) 
 		cs = append(cs, fieldName2ColName(col)+" = ?")
 	}
 	sv := strings.Join(cs, ",")
-	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk.Int())
 	_, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
@@ -1232,7 +1232,7 @@ func updateByPK(c context.Context, tdx Tdx, s interface{}) error {
 		cs = append(cs, col+" = ?")
 	}
 	sv := strings.Join(cs, ",")
-	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk.Int())
 	_, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
