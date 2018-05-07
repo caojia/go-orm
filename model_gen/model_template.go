@@ -97,7 +97,7 @@ func TestInsertAndGet{{.Name}}(t *testing.T) {
 		if loaded == nil {
 			t.Fatalf("should have loaded one {{.Name}}")
 		}
-		err := m.Save{{.Name}}({{.LowerName}})
+		err = m.Save{{.Name}}({{.LowerName}})
 		if err != nil {
 			t.Fatalf("failed to Save{{.Name}}, err: %+v", err)
 		}
