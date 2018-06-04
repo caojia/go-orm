@@ -53,7 +53,7 @@ func (m *Model) Insert{{.Name}}({{.LowerName}} *{{.Name}}) error {
 
 func (m *Model) Save{{.Name}}({{.LowerName}} *{{.Name}}) error {
 	fields:= {{.LowerName}}.Fields()
-	return m.InsertOrUpdate({{.LowerName}}, fields)
+	return m.Master().InsertOrUpdate({{.LowerName}}, fields)
 }
 
 func (m *Model) Get{{.Name}}ByPK(id {{.PrimaryField.Type}}) (*{{.Name}}, error) {
