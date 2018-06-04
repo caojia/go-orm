@@ -50,18 +50,15 @@ func addLimit(sql string, limitStatus int) string {
 	if ok, _ := regexp.MatchString(`(?i)limit|^(?i)show`, sql); ok {
 		return sql
 	}
-	logs := logrus.WithField("sql", sql)
 	sql = strings.TrimSuffix(sql, ";")
 	//最后一个匹配项
 	switch limitStatus {
 	case 0:
 		sql += " LIMIT 2000 "
-		logs = logs.WithField("add limit", "LIMIT 2000")
+		logrus.WithField("sql", sql).WithField("add limit", "LIMIT 2000").Error("This sql does not have a limit condition, please add a limit. Automatically add limit for sql")
 	case 1:
 		sql += " LIMIT 1 "
-		logs = logs.WithField("add limit", "LIMIT 1")
 	}
-	logs.Error("This sql does not have a limit condition, please add a limit.Automatically add limit for sql")
 	return sql
 }
 
