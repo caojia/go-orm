@@ -49,8 +49,6 @@ func addLimit(sql string, limitStatus int) string {
 	//判断select是否有limit这个关键字,检查子查询
 	if ok, _ := regexp.MatchString(`(?i)limit|^(?i)show`, sql); ok {
 		return sql
-	} else {
-
 	}
 	logs := logrus.WithField("sql", sql)
 	sql = strings.TrimSuffix(sql, ";")
