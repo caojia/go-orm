@@ -32,6 +32,13 @@ func (obj {{.Name}}) Columns() map[string]string {
 	}
 }
 
+func (obj {{.Name}}) Fields() []string {
+	return []string {
+		{{range .Fields}}{{if or (ne .Tag "created_at") (ne .Tag "updated_at") }}"{{.ColumnName}}",{{end}}
+		{{end}}
+	}
+}
+
 func (obj {{.Name}}) TableName() string {
 	return "{{.TableName}}"
 }
@@ -42,6 +49,11 @@ var objApi string = `
 
 func (m *Model) Insert{{.Name}}({{.LowerName}} *{{.Name}}) error {
 	return m.Insert({{.LowerName}})
+}
+
+func (m *Model) Save{{.Name}}({{.LowerName}} *{{.Name}}) error {
+	fields:= {{.LowerName}}.Fields()
+	return m.InsertOrUpdate({{.LowerName}}, fields)
 }
 
 func (m *Model) Get{{.Name}}ByPK(id {{.PrimaryField.Type}}) (*{{.Name}}, error) {
@@ -84,6 +96,10 @@ func TestInsertAndGet{{.Name}}(t *testing.T) {
 		}
 		if loaded == nil {
 			t.Fatalf("should have loaded one {{.Name}}")
+		}
+		err = m.Save{{.Name}}({{.LowerName}})
+		if err != nil {
+			t.Fatalf("failed to Save{{.Name}}, err: %+v", err)
 		}
 	})
 }
