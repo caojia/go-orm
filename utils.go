@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 //替换query 中？？为长度为len的？
@@ -47,15 +49,21 @@ func addLimit(sql string, limitStatus int) string {
 	//判断select是否有limit这个关键字,检查子查询
 	if ok, _ := regexp.MatchString(`(?i)limit|^(?i)show`, sql); ok {
 		return sql
+	} else {
+
 	}
+	logs := logrus.WithField("sql", sql)
 	sql = strings.TrimSuffix(sql, ";")
 	//最后一个匹配项
 	switch limitStatus {
 	case 0:
 		sql += " LIMIT 2000 "
+		logs = logs.WithField("add limit", "LIMIT 2000")
 	case 1:
 		sql += " LIMIT 1 "
+		logs = logs.WithField("add limit", "LIMIT 1")
 	}
+	logs.Error("This sql does not have a limit condition, please add a limit.Automatically add limit for sql")
 	return sql
 }
 

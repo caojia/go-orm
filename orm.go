@@ -5,22 +5,21 @@ package orm
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
 
 	_ "github.com/go-sql-driver/mysql"
-	//"strconv"
-	"context"
-	"encoding/json"
-	"strconv"
+	"github.com/sirupsen/logrus"
 )
 
 var sqlParamReg *regexp.Regexp
@@ -106,7 +105,7 @@ func reflectStructValue(v reflect.Value, t reflect.Type, cols []string, row *sql
 		}
 		fv := v.FieldByName(col)
 		if !fv.CanAddr() {
-			log.Println("missing filed", c)
+			logrus.Infof("missing filed :%s", c)
 			var b interface{}
 			targets[k] = &b
 		} else {
@@ -163,7 +162,7 @@ func checkTableColumns(tdx Tdx, s interface{}) error {
 	if err != nil {
 		return err
 	}
-	log.Println(tableName, cols)
+	logrus.WithField("table", tableName).WithField("cols", cols).Info()
 	return checkStruct(s, cols, tableName)
 }
 
@@ -183,17 +182,24 @@ type Explain struct {
 }
 type SqlLogger interface {
 	Log(c context.Context, sqlLog *SqlLog)
-	ShowExplain() bool
+	ShowExplain(dur time.Duration) bool
 }
 type VerboseSqlLogger struct{}
 
 func (n *VerboseSqlLogger) Log(c context.Context, sqlLog *SqlLog) {
-	data, _ := json.Marshal(sqlLog)
-	log.Printf("[go-orm] %v\n", string(data))
+	logs := logrus.WithFields(logrus.Fields{
+		"Sql":      sqlLog.Sql,
+		"Duration": sqlLog.Duration,
+	})
+	if len(sqlLog.Explain) > 0 {
+		data, _ := json.Marshal(sqlLog.Explain)
+		logs = logs.WithField("Explain", string(data))
+	}
+	logs.Info()
 }
 
-func (n *VerboseSqlLogger) ShowExplain() bool {
-	return true
+func (n *VerboseSqlLogger) ShowExplain(dur time.Duration) bool {
+	return dur >= 200*time.Millisecond
 }
 
 func logPrint(c context.Context, logger SqlLogger, exp []*Explain, duration time.Duration, queryStr string, args ...interface{}) {
@@ -243,7 +249,7 @@ func doExplain(tdx Tdx, query string, args ...interface{}) ([]*Explain, error) {
 		cols, err := rows.Columns()
 		err = reflectStruct(&e, cols, rows)
 		if err != nil {
-			log.Println("reflect err", err)
+			logrus.WithError(err).Error("reflect err")
 		}
 		exp = append(exp, &Explain{Table: e.Table.String, KeyLen: e.KeyLen.Int64, Type: e.Type.String, Key: e.Key.String, Ref: e.Ref.String, Rows: e.Rows.Int64, Extra: e.Extra.String})
 	}
@@ -270,7 +276,7 @@ func query(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (re
 	duration := time.Since(start)
 
 	var exp []*Explain
-	if sqlLogger.ShowExplain() && (duration > 200*time.Millisecond) {
+	if sqlLogger.ShowExplain(duration) {
 		exp, err = doExplain(tdx, queryStr, args...)
 		if err != nil {
 			return nil, err
@@ -282,7 +288,6 @@ func query(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (re
 
 func execWithParam(c context.Context, tdx Tdx, paramQuery string, paramMap interface{}) (sql.Result, error) {
 	params := sqlParamReg.FindAllString(paramQuery, -1)
-	log.Println(params)
 	if params != nil && len(params) > 0 {
 		var args []interface{} = make([]interface{}, 0, len(params))
 		for _, param := range params {
@@ -668,7 +673,7 @@ func selectRawSet(c context.Context, tdx Tdx, queryStr string, columnMaps map[st
 		err = rows.Scan(itemList...)
 
 		if err != nil {
-			log.Printf("%+v, %+v\n", err, rows)
+			logrus.WithError(err).WithField("rows", rows).Error("scan err")
 			return dataSet, err
 		}
 		for k, c := range cols {
@@ -712,7 +717,7 @@ func selectRaw(c context.Context, tdx Tdx, queryStr string, args ...interface{})
 		err = rows.Scan(itemList...)
 
 		if err != nil {
-			log.Println("%v, %v", err, rows)
+			logrus.WithError(err).WithField("rows", rows).Error("scan err")
 			return colNames, data, err
 		}
 		for k, _ := range colNames {
@@ -839,7 +844,7 @@ func selectManyInternal(c context.Context, tdx Tdx, s interface{}, processOr boo
 				}
 				fv := v.Elem().FieldByName(fName)
 				if !fv.CanAddr() {
-					log.Printf("missing field: %s , query: %s\n", fName, queryStr)
+					logrus.WithField("sql", queryStr).Errorf("missing field: %s", fName)
 					var b interface{}
 					targets[k] = &b
 				} else {
@@ -1188,7 +1193,7 @@ func insertOrUpdate(c context.Context, tdx Tdx, s interface{}, fields []string) 
 		fields[k] = str
 	}
 	//检查主键的情况，在insert中加入主键
-	if pk.Addr().Interface != nil {
+	if pk.Addr().Interface() != nil {
 		cols += fmt.Sprintf(",%s", pkName)
 		vals += ",?"
 		ifs = append(ifs, pk.Addr().Interface())
@@ -1216,7 +1221,7 @@ func updateFieldsByPK(c context.Context, tdx Tdx, s interface{}, cols []string) 
 		cs = append(cs, fieldName2ColName(col)+" = ?")
 	}
 	sv := strings.Join(cs, ",")
-	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk.Int())
 	_, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
@@ -1232,7 +1237,7 @@ func updateByPK(c context.Context, tdx Tdx, s interface{}) error {
 		cs = append(cs, col+" = ?")
 	}
 	sv := strings.Join(cs, ",")
-	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk)
+	q := fmt.Sprintf("update %s set %s where %s = %d", getTableName(s), sv, pkName, pk.Int())
 	_, err := exec(c, tdx, q, ifs...)
 	if err != nil {
 		return err
@@ -1317,10 +1322,11 @@ func newORMWithDriver(ds string, driverName string) *ORM {
 	var err error
 	ret.db, err = sql.Open(driverName, ds)
 	if err != nil {
-		log.Fatalln("can not connect to db:", err)
+		logrus.WithError(err).Fatal("Can not connect to db")
 	}
 	ret.db.SetMaxOpenConns(100)
 	ret.db.SetMaxIdleConns(5)
+	ret.db.SetConnMaxLifetime(time.Minute * 10)
 	return ret
 }
 
@@ -1337,7 +1343,7 @@ func (o *ORM) CheckTables() {
 	for _, s := range o.tables {
 		err := checkTableColumns(o.db, s)
 		if err != nil {
-			log.Fatalln("can not pass table check:", err)
+			logrus.WithError(err).Fatal("Can not pass table check")
 		}
 	}
 }
@@ -1586,7 +1592,7 @@ func (o *ORMTran) ExecWithRowAffectCheck(n int64, query string, args ...interfac
 }
 
 func NormalizeValue(valueType string, value interface{}) (interface{}, error) {
-	log.Printf("NormalizeValue: type=%v value=%v\n", reflect.TypeOf(value), reflect.ValueOf(value))
+	logrus.WithField("type", reflect.TypeOf(value)).WithField("value", reflect.ValueOf(value)).Info("NormalizeValue")
 	switch value.(type) {
 	case string:
 		return value.(string), nil
