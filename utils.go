@@ -55,7 +55,7 @@ func addLimit(sql string, limitStatus int) string {
 	switch limitStatus {
 	case 0:
 		sql += " LIMIT 2000 "
-		logrus.WithField("sql", sql).WithField("add limit", "LIMIT 2000").Error("This sql does not have a limit condition, please add a limit. Automatically add limit for sql")
+		logrus.WithField("sql", sql).WithField("add limit", "LIMIT 2000").Warn("This sql does not have a limit condition, please add a limit. Automatically add limit for sql")
 	case 1:
 		sql += " LIMIT 1 "
 	}
