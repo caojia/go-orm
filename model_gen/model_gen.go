@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"runtime"
 
+	"github.com/mtxmn/go-orm/generator"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mijia/modelq/drivers"
 )
@@ -51,20 +53,20 @@ func main() {
 		return
 	}
 
-	dbSchema, err := drivers.LoadDatabaseSchema(driver, targetDb, schemaName, tableNames)
+	dbSchema, err := drivers.LoadDatabaseSchema("mysql", targetDb, schemaName, tableNames)
 	if err != nil {
 		log.Println("Cannot load table schemas from database.")
 		log.Fatal(err)
 	}
 
-	codeConfig := &CodeConfig{
-		packageName:    packageName,
-		touchTimestamp: touchTimestamp,
-		template:       tmplName,
-		skipPrefix:     prefix,
+	codeConfig := &generator.CodeConfig{
+		PackageName:    packageName,
+		TouchTimestamp: touchTimestamp,
+		Template:       tmplName,
+		SkipPrefix:     prefix,
 	}
 	codeConfig.MustCompileTemplate()
-	generateModels(schemaName, dbSchema, *codeConfig)
+	generator.GenerateModels(schemaName, dbSchema, *codeConfig)
 	formatCodes(packageName)
 }
 

@@ -1,4 +1,4 @@
-package main
+package generator
 
 import (
 	"bufio"
@@ -18,32 +18,32 @@ type CodeResult struct {
 }
 
 type CodeConfig struct {
-	packageName    string
-	touchTimestamp bool
-	template       string
-	skipPrefix     string
+	PackageName    string
+	TouchTimestamp bool
+	Template       string
+	SkipPrefix     string
 }
 
 func (cc CodeConfig) MustCompileTemplate() *template.Template {
-	if cc.template == "" {
+	if cc.Template == "" {
 		return nil
 	}
-	return template.Must(template.ParseFiles(cc.template))
+	return template.Must(template.ParseFiles(cc.Template))
 }
 
-func generateModels(dbName string, dbSchema drivers.DbSchema, config CodeConfig) {
+func GenerateModels(dbName string, dbSchema drivers.DbSchema, config CodeConfig) {
 	customTmpl := config.MustCompileTemplate()
 
-	if fs, err := os.Stat(config.packageName); err != nil || !fs.IsDir() {
-		os.Mkdir(config.packageName, os.ModeDir|os.ModePerm)
+	if fs, err := os.Stat(config.PackageName); err != nil || !fs.IsDir() {
+		os.Mkdir(config.PackageName, os.ModeDir|os.ModePerm)
 	}
 
 	jobs := make(chan CodeResult)
 	for tbl, cols := range dbSchema {
 		go func(tableName string, schema drivers.TableSchema) {
 			shortTableName := tableName
-			if strings.HasPrefix(tableName, config.skipPrefix) {
-				shortTableName = tableName[len(config.skipPrefix):]
+			if strings.HasPrefix(tableName, config.SkipPrefix) {
+				shortTableName = tableName[len(config.SkipPrefix):]
 			}
 			err := generateModel(dbName, shortTableName, tableName, schema, config, customTmpl)
 			jobs <- CodeResult{tableName, err}
@@ -55,7 +55,7 @@ func generateModels(dbName string, dbSchema drivers.DbSchema, config CodeConfig)
 		if result.err != nil {
 			log.Printf("Error when generating code for %s, %s", result.name, result.err)
 		} else {
-			log.Printf("Code generated for table %s, into package %s/%s.go", result.name, config.packageName, result.name)
+			log.Printf("Code generated for table %s, into package %s/%s.go", result.name, config.PackageName, result.name)
 		}
 	}
 	close(jobs)
@@ -66,7 +66,7 @@ func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema,
 	if strings.HasPrefix(tName, "_") {
 		return nil
 	}
-	file, err := os.Create(path.Join(config.packageName, shortTName+".go"))
+	file, err := os.Create(path.Join(config.PackageName, shortTName+".go"))
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func generateModel(dbName, shortTName, tName string, schema drivers.TableSchema,
 		return fmt.Errorf("[%s] Fail to gen model object api, %s", tName, err)
 	}
 
-	testFileName := path.Join(config.packageName, shortTName+"_test.go")
+	testFileName := path.Join(config.PackageName, shortTName+"_test.go")
 	if err := generateModelTest(model, tmpl, needTime, testFileName); err != nil {
 		return err
 	}
@@ -290,7 +290,7 @@ func (m ModelMeta) InsertableFields() string {
 		}
 		autoTimestamp := strings.ToUpper(f.DefaultValue) == "CURRENT_TIMESTAMP" ||
 			strings.ToUpper(f.DefaultValue) == "NOW()"
-		if f.Type == "time.Time" && autoTimestamp && !m.config.touchTimestamp {
+		if f.Type == "time.Time" && autoTimestamp && !m.config.TouchTimestamp {
 			continue
 		}
 		fields = append(fields, fmt.Sprintf("\"%s\"", f.Name))
@@ -306,7 +306,7 @@ func (m ModelMeta) GetInsertableFields() []ModelField {
 		}
 		autoTimestamp := strings.ToUpper(f.DefaultValue) == "CURRENT_TIMESTAMP" ||
 			strings.ToUpper(f.DefaultValue) == "NOW()"
-		if f.Type == "time.Time" && autoTimestamp && !m.config.touchTimestamp {
+		if f.Type == "time.Time" && autoTimestamp && !m.config.TouchTimestamp {
 			continue
 		}
 		fields = append(fields, f)
@@ -321,7 +321,7 @@ func (m ModelMeta) UpdatableFields() string {
 			continue
 		}
 		autoUpdateTime := strings.ToUpper(f.Extra) == "ON UPDATE CURRENT_TIMESTAMP"
-		if autoUpdateTime && !m.config.touchTimestamp {
+		if autoUpdateTime && !m.config.TouchTimestamp {
 			continue
 		}
 		fields = append(fields, fmt.Sprintf("\"%s\"", f.Name))
@@ -336,7 +336,7 @@ func (m ModelMeta) GetUpdatableFields() []ModelField {
 			continue
 		}
 		autoUpdateTime := strings.ToUpper(f.Extra) == "ON UPDATE CURRENT_TIMESTAMP"
-		if autoUpdateTime && !m.config.touchTimestamp {
+		if autoUpdateTime && !m.config.TouchTimestamp {
 			continue
 		}
 		fields = append(fields, f)
@@ -357,7 +357,7 @@ func (m ModelMeta) GenHeader(w *bufio.Writer, tmpl *template.Template, importTim
 	return m.getTemplate(tmpl, "header", tmHeader).Execute(w, map[string]interface{}{
 		"DbName":     m.DbName,
 		"TableName":  m.TableName,
-		"PkgName":    m.config.packageName,
+		"PkgName":    m.config.PackageName,
 		"ImportTime": importTime,
 	})
 }
@@ -366,7 +366,7 @@ func (m ModelMeta) GenTestHeader(w *bufio.Writer, tmpl *template.Template, impor
 	return m.getTemplate(tmpl, "test_header", tmTestHeader).Execute(w, map[string]interface{}{
 		"DbName":     m.DbName,
 		"TableName":  m.TableName,
-		"PkgName":    m.config.packageName,
+		"PkgName":    m.config.PackageName,
 		"ImportTime": importTime,
 	})
 }
