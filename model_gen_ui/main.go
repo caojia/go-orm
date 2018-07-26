@@ -18,7 +18,6 @@ var indexTm *template.Template
 
 var formFields = map[string]string{
 	"database": "数据库名",
-	"password": "数据库密码",
 	"tables":   "表名",
 	"packname": "生成代码的包名",
 }
@@ -67,7 +66,11 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if host == "" {
 		host = "127.0.0.1:3306"
 	}
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s", user, r.Form.Get("password"), host, r.Form.Get("database"))
+	password := r.Form.Get("password")
+	if password != "" {
+		password = ":" + password
+	}
+	dsn := fmt.Sprintf("%s%s@tcp(%s)/%s", user, password, host, r.Form.Get("database"))
 	dbSchema, err := drivers.LoadDatabaseSchema(r.Form.Get("driver"), dsn, r.Form.Get("database"), r.Form.Get("tables"))
 	if err != nil {
 		render(w, err.Error())
@@ -136,28 +139,28 @@ var index = `
                 </tr>
                 <tr>
                     <td>
-                        <span class="red">*</span>数据库密码:</td>
+                        数据库密码:</td>
                     <td>
                         <input type="password" name="password">
                     </td>
                 </tr>
                 <tr>
                     <td>
-                        <span class="red">*</span>数据库名:</td>
+                        数据库名<span class="red">*</span>:</td>
                     <td>
                         <input type="text" name="database">
                     </td>
                 </tr>
                 <tr>
                     <td>
-                        <span class="red">*</span>表名:</td>
+                        表名<span class="red">*</span>:</td>
                     <td>
                         <input type="text" name="tables" placeholder='e.g. "user,article,blog"'>
                     </td>
                 </tr>
                 <tr>
                     <td>
-                        <span class="red">*</span>生成代码的包名:</td>
+                        生成代码的包名<span class="red">*</span>:</td>
                     <td>
                         <input type="text" name="packname" placeholder='e.g. "models"'>
                     </td>
