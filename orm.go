@@ -489,7 +489,7 @@ func selectOne(c context.Context, tdx Tdx, s interface{}, query string, args ...
 			} else if orCol.or == "belongs_to" {
 				fk := getPkColumnByType(orCol.orType)
 				if fk == "" {
-					panic(errors.New("error while getting primary key of " + orCol.table + " for belongs_to"))
+					return errors.New("error while getting primary key of " + orCol.table + " for belongs_to")
 				}
 				fkValue, err := getFieldValue(s, colName2FieldName(fk))
 				if err != nil {
