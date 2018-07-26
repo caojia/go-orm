@@ -109,78 +109,165 @@ var index = `
 </head>
 
 <body>
-    <div style="width: 80%; margin: auto auto">
+    <div class='form_box'>
         <p style="color: red">{{ . }}</p>
-        <form action="/" method="POST">
+        <form action="/" method="POST" class="form_table">
             <table>
                 <tr>
                     <td>数据库类型:</td>
-                    <td>
-                        mysql:
-                        <input type="radio" name="driver" value="mysql" checked="true"></input>
-                        postgres:
-                        <input type="radio" name="driver" value="postgres"></input>
+                    <td class="radio_box">
+                        <input type="radio" name="driver" value="mysql" checked="true">
+                        <span>mysql</span>
+                        <input type="radio" name="driver" value="postgres">
+                        <span>postgres</span>
                     </td>
                 </tr>
                 <tr>
                     <td>数据库host:</td>
                     <td>
-                        <input type="text" name="host" placeholder="127.0.0.1:3306"></input>
+                        <input type="text" name="host" placeholder="127.0.0.1:3306">
                     </td>
                 </tr>
                 <tr>
                     <td>数据库用户名:</td>
                     <td>
-                        <input type="text" name="user" placeholder="root"></input>
+                        <input type="text" name="user" placeholder="root">
                     </td>
                 </tr>
                 <tr>
-                    <td>*数据库密码:</td>
                     <td>
-                        <input type="password" name="password"></input>
+                        <span class="red">*</span>数据库密码:</td>
+                    <td>
+                        <input type="password" name="password">
                     </td>
                 </tr>
                 <tr>
-                    <td>*数据库名:</td>
                     <td>
-                        <input type="text" name="database"></input>
+                        <span class="red">*</span>数据库名:</td>
+                    <td>
+                        <input type="text" name="database">
                     </td>
                 </tr>
                 <tr>
-                    <td>*表名:</td>
                     <td>
-                        <input type="text" name="tables" placeholder='e.g. "user,article,blog"'></input>
+                        <span class="red">*</span>表名:</td>
+                    <td>
+                        <input type="text" name="tables" placeholder='e.g. "user,article,blog"'>
                     </td>
                 </tr>
                 <tr>
-                    <td>*生成代码的包名:</td>
                     <td>
-                        <input type="text" name="packname" placeholder='e.g. "models"'></input>
+                        <span class="red">*</span>生成代码的包名:</td>
+                    <td>
+                        <input type="text" name="packname" placeholder='e.g. "models"'>
                     </td>
                 </tr>
                 <tr>
                     <td>prefix:</td>
                     <td>
-                        <input type="text" name="prefix" placeholder='Prefix to skip when generating the table models'></input>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <input type="submit" value="提交" style="width:100px;height:25px"></input>
+                        <input type="text" name="prefix" placeholder='Prefix to skip when generating the table models'>
                     </td>
                 </tr>
             </table>
-		</form>
-		<form action="/close" onSubmit="setTimeout(function(){window.opener=null;window.close();})">
-			<input type="submit" value="退出" style="width:100px;height:25px"></input>
-		</form>
+            <div class="form_submit">
+                <input type="submit" value="提交">
+            </div>
+        </form>
     </div>
+    <form action="/close" onSubmit="setTimeout(function(){window.opener=null;window.close();})" class="form_exit">
+        <input type="submit" value="退出" class="btn_gray">
+    </form>
 </body>
 
 <style>
-    input[type="text"], input[type="password"] {
-        width: 500px
+    * {
+        margin: 0;
+        padding: 0;
+    }
+
+    .form_box {
+        position: relative;
+        width: 600px;
+        margin: 0 auto;
+        padding-bottom: 60px;
+    }
+
+    .form_box .red {
+        vertical-align: middle;
+        color: #ed3f14;
+        margin-right: 5px;
+    }
+
+    .form_table table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0px 10px;
+    }
+
+    .form_table tr td:first-child {
+        width: 140px;
+        font-size: 16px;
+        color: #666;
+    }
+
+    .form_table td {
+        height: 40px;
+    }
+
+    .form_table input[type="text"],
+    input[type="password"] {
+        height: 100%;
+        width: 100%;
+        font-size: 14px;
+        letter-spacing: 1px;
+        border: 1px solid #999;
+        border-radius: 8px;
+        outline: none;
+        padding: 0 8px;
+        color: #666;
+    }
+
+    .form_table .radio_box {
+        color: #666;
+    }
+
+    .form_table .radio_box span {
+        margin-right: 70px;
+    }
+
+    .radio_box input[type="radio"] {
+        vertical-align: middle;
+    }
+
+    input[type="submit"] {
+        width: 100px;
+        height: 40px;
+        background: #2d8cf0;
+        border: 1px solid transparent;
+        cursor: pointer;
+        color: #fff;
+        line-height: 40px;
+        border-radius: 6px;
+        outline: none;
+    }
+
+    .form_submit {
+        position: absolute;
+        left: 140px;
+        bottom: 0;
+    }
+
+    .form_exit {
+        position: relative;
+        width: 100px;
+        bottom: 40px;
+        left: 885px;
+    }
+
+    .form_exit .btn_gray {
+        background: rgb(187, 190, 196);
     }
 </style>
+
 </html>
 `
