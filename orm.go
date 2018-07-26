@@ -89,7 +89,7 @@ func reflectStruct(s interface{}, cols []string, row *sql.Rows) error {
 }
 func reflectStructValue(v reflect.Value, t reflect.Type, cols []string, row *sql.Rows) error {
 	if v.Kind() != reflect.Ptr {
-		panic(errors.New("holder should be pointer"))
+		return errors.New("holder should be pointer")
 	}
 	v = v.Elem()
 	targets := make([]interface{}, len(cols))
