@@ -173,10 +173,10 @@ var index = `
                 <input type="submit" value="提交">
             </div>
         </form>
+        <form action="/close" onSubmit="setTimeout(function(){window.opener=null;window.close();})" class="form_exit">
+            <input type="submit" value="退出" class="btn_gray">
+        </form>
     </div>
-    <form action="/close" onSubmit="setTimeout(function(){window.opener=null;window.close();})" class="form_exit">
-        <input type="submit" value="退出" class="btn_gray">
-    </form>
 </body>
 
 <style>
@@ -257,11 +257,11 @@ var index = `
         bottom: 0;
     }
 
-    .form_exit {
-        position: relative;
+    .form_exit{
+        position: absolute;
         width: 100px;
-        bottom: 40px;
-        left: 885px;
+        bottom: 0;
+        right: 0;
     }
 
     .form_exit .btn_gray {
