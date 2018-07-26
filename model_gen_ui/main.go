@@ -48,7 +48,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.ParseForm()
-	missingFields := make([]string, 0)
+	missingFields := make([]string, 0, len(formFields))
 	for k, v := range formFields {
 		if r.Form.Get(k) == "" {
 			missingFields = append(missingFields, v)
