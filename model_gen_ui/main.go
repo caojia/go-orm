@@ -38,7 +38,7 @@ func main() {
 	err := http.ListenAndServe(host, nil)
 	if err != nil {
 		fmt.Println("you can provide a port by flag -port=3000")
-		log.Panicf("start server failed, err: %s", err)
+		panic(err)
 	}
 
 }
