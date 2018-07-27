@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"runtime"
 
+	"github.com/caojia/go-orm/generator"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mijia/modelq/drivers"
 )
@@ -57,14 +59,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	codeConfig := &CodeConfig{
-		packageName:    packageName,
-		touchTimestamp: touchTimestamp,
-		template:       tmplName,
-		skipPrefix:     prefix,
+	codeConfig := &generator.CodeConfig{
+		PackageName:    packageName,
+		TouchTimestamp: touchTimestamp,
+		Template:       tmplName,
+		SkipPrefix:     prefix,
 	}
 	codeConfig.MustCompileTemplate()
-	generateModels(schemaName, dbSchema, *codeConfig)
+	generator.GenerateModels(schemaName, dbSchema, *codeConfig)
 	formatCodes(packageName)
 }
 
