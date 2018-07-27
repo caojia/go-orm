@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/mtxmn/go-orm/generator"
+	"github.com/caojia/go-orm/generator"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mijia/modelq/drivers"

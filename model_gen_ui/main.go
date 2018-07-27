@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/caojia/go-orm/generator"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mijia/modelq/drivers"
-	"github.com/mtxmn/go-orm/generator"
 )
 
 var indexTm *template.Template
