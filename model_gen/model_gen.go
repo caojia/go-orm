@@ -53,7 +53,7 @@ func main() {
 		return
 	}
 
-	dbSchema, err := drivers.LoadDatabaseSchema("mysql", targetDb, schemaName, tableNames)
+	dbSchema, err := drivers.LoadDatabaseSchema(driver, targetDb, schemaName, tableNames)
 	if err != nil {
 		log.Println("Cannot load table schemas from database.")
 		log.Fatal(err)
