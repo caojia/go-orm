@@ -89,7 +89,7 @@ func reflectStruct(s interface{}, cols []string, row *sql.Rows) error {
 }
 func reflectStructValue(v reflect.Value, t reflect.Type, cols []string, row *sql.Rows) error {
 	if v.Kind() != reflect.Ptr {
-		panic(errors.New("holder should be pointer"))
+		return errors.New("holder should be pointer")
 	}
 	v = v.Elem()
 	targets := make([]interface{}, len(cols))
@@ -357,7 +357,7 @@ type orColumn struct {
 /**
 返回三个值，一个是struct主键的field，一个是主键对应的数据库的值 ，一个是[]*orColumn
 */
-func getOrColumns(s interface{}) (string, string, []*orColumn) {
+func getOrColumns(s interface{}) (string, string, []*orColumn, error) {
 	t := reflect.TypeOf(s).Elem()
 	return getOrColumnsByType(t)
 }
@@ -365,7 +365,7 @@ func getOrColumns(s interface{}) (string, string, []*orColumn) {
 /**
 根据struct中的值找到其他struct进行relation的联系，并组成[]*orColumn结构,返回三个值，一个是struct主键的field，一个是主键对应的数据库的值 ，一个是[]*orColumn
 */
-func getOrColumnsByType(t reflect.Type) (string, string, []*orColumn) {
+func getOrColumnsByType(t reflect.Type) (string, string, []*orColumn, error) {
 	res := make([]*orColumn, 0)
 	pkCol := ""
 	pkField := ""
@@ -378,27 +378,27 @@ func getOrColumnsByType(t reflect.Type) (string, string, []*orColumn) {
 				var orType reflect.Type
 				if orTag == "has_one" {
 					if ft.Type.Kind() != reflect.Ptr {
-						panic(errors.New(ft.Name + " should be pointer"))
+						return "", "", res, errors.New(ft.Name + " should be pointer")
 					}
 					orType = ft.Type.Elem()
 				} else if orTag == "has_many" {
 					if ft.Type.Kind() != reflect.Slice {
-						panic(errors.New(ft.Name + " should be slice of pointer"))
+						return "", "", res, errors.New(ft.Name + " should be slice of pointer")
 					}
 					elemType := ft.Type.Elem()
 					if elemType.Kind() != reflect.Ptr {
-						panic(errors.New(ft.Name + " should be slice of pointer"))
+						return "", "", res, errors.New(ft.Name + " should be slice of pointer")
 					}
 					orType = elemType.Elem()
 				} else if orTag == "belongs_to" {
 					if ft.Type.Kind() != reflect.Ptr {
-						panic(errors.New(ft.Name + " should be pointer"))
+						return "", "", res, errors.New(ft.Name + " should be pointer")
 					}
 					orType = ft.Type.Elem()
 				}
 				orTableName := ft.Tag.Get("table")
 				if orTableName == "" {
-					panic(errors.New("invalid table name in or tag on field: " + ft.Name))
+					return "", "", res, errors.New("invalid table name in or tag on field: " + ft.Name)
 				}
 				res = append(res, &orColumn{
 					fieldName: ft.Name,
@@ -407,7 +407,7 @@ func getOrColumnsByType(t reflect.Type) (string, string, []*orColumn) {
 					orType:    orType,
 				})
 			} else {
-				panic(errors.New("unsupported or tag: " + orTag + ", only support has_one, has_many and belongs_to for now"))
+				return "", "", res, errors.New("unsupported or tag: " + orTag + ", only support has_one, has_many and belongs_to for now")
 			}
 		}
 		dbTag := ft.Tag.Get("db")
@@ -426,7 +426,7 @@ func getOrColumnsByType(t reflect.Type) (string, string, []*orColumn) {
 			pkField = ft.Name
 		}
 	}
-	return pkField, pkCol, res
+	return pkField, pkCol, res, nil
 }
 
 /**
@@ -463,7 +463,10 @@ func selectOne(c context.Context, tdx Tdx, s interface{}, query string, args ...
 	if err != nil {
 		return err
 	}
-	pkField, pkCol, orColumns := getOrColumns(s)
+	pkField, pkCol, orColumns, err := getOrColumns(s)
+	if err != nil {
+		return err
+	}
 	if orColumns != nil && len(orColumns) > 0 {
 		v := reflect.ValueOf(s).Elem()
 		pkValue, err := getFieldValue(s, pkField)
@@ -486,7 +489,7 @@ func selectOne(c context.Context, tdx Tdx, s interface{}, query string, args ...
 			} else if orCol.or == "belongs_to" {
 				fk := getPkColumnByType(orCol.orType)
 				if fk == "" {
-					panic(errors.New("error while getting primary key of " + orCol.table + " for belongs_to"))
+					return errors.New("error while getting primary key of " + orCol.table + " for belongs_to")
 				}
 				fkValue, err := getFieldValue(s, colName2FieldName(fk))
 				if err != nil {
@@ -809,7 +812,10 @@ func selectManyInternal(c context.Context, tdx Tdx, s interface{}, processOr boo
 	if isPtr {
 		t = t.Elem()
 		if processOr {
-			pkField, pkCol, orCols = getOrColumnsByType(t)
+			pkField, pkCol, orCols, err = getOrColumnsByType(t)
+			if err != nil {
+				return err
+			}
 			if orCols != nil && len(orCols) > 0 {
 				hasOrCols = true
 			}

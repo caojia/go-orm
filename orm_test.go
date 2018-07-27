@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/magiconair/properties/assert"
 	"log"
 	"testing"
 	"time"
+
+	"github.com/magiconair/properties/assert"
 )
 
 type TestOrmA123 struct {
@@ -212,7 +213,7 @@ func TestInsert(t *testing.T) {
 	})
 }
 
-func TestSelectInt32(t *testing.T)  {
+func TestSelectInt32(t *testing.T) {
 	oneTestScope(func(orm *ORM, testTableName string) {
 		testObj := &TestOrmA123{
 			OtherId:     1,
@@ -227,7 +228,7 @@ func TestSelectInt32(t *testing.T)  {
 			t.Error(err)
 		}
 		var arr []int32
-		err =orm.Select(&arr,"select other_id from test_orm_a123 where other_id = ?",1)
+		err = orm.Select(&arr, "select other_id from test_orm_a123 where other_id = ?", 1)
 		if err != nil {
 			t.Error(err)
 		}
