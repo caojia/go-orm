@@ -189,7 +189,7 @@ type VerboseSqlLogger struct{}
 func (n *VerboseSqlLogger) Log(c context.Context, sqlLog *SqlLog) {
 	logs := logrus.WithFields(logrus.Fields{
 		"Sql":      sqlLog.Sql,
-		"Duration": sqlLog.Duration,
+		"Duration": fmt.Sprintf("%.2fms", sqlLog.Duration.Seconds()*1e3),
 	})
 	if len(sqlLog.Explain) > 0 {
 		data, _ := json.Marshal(sqlLog.Explain)
