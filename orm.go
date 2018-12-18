@@ -850,7 +850,7 @@ func selectManyInternal(c context.Context, tdx Tdx, s interface{}, processOr boo
 				}
 				fv := v.Elem().FieldByName(fName)
 				if !fv.CanAddr() {
-					logrus.WithField("sql", queryStr).Errorf("missing field: %s", fName)
+					logrus.WithField("sql", queryStr).Warnf("missing field: %s", fName)
 					var b interface{}
 					targets[k] = &b
 				} else {
