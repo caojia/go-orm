@@ -14,7 +14,7 @@ import (
 type TestOrmA123 struct {
 	TestID      int64 `json:"test_id" pk:"true" ai:"true" db:"test_id,ai,pk"`
 	OtherId     int64
-	Description string
+	Description string `json:"description" db:"description"`
 	Name        sql.NullString
 	StartDate   time.Time
 	EndDate     time.Time

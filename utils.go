@@ -9,6 +9,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func IsContain(str string,arr []string) int  {
+	for k,v:=range arr {
+		if v == str {
+			return k
+		}
+	}
+	return  -1
+}
 //替换query 中？？为长度为len的？
 func getNumInStr(len int, query string) string {
 	str := ""
