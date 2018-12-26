@@ -989,7 +989,7 @@ var zeroTime = time.Unix(1, 0)
 func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect.Value, bool, string) {
 	t := reflect.TypeOf(s).Elem()
 	v := reflect.ValueOf(s).Elem()
-	ret := make([]interface{}, 0, len(cols))
+	ret := make([]interface{}, len(cols))
 	var pk reflect.Value
 	var pkName string
 	isAi := false
@@ -1012,19 +1012,24 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 			if ft.Tag.Get("ai") == "true" || isPkOrAi(dbTag, "ai") {
 				isAi = true
 			}
-			break
 		}
-	}
-	//通过cols获取struct中的值
-	for _, value := range cols {
-		value = colName2FieldName(value)
-		r := v.FieldByName(value).Addr().Interface()
-		if v.FieldByName(value).Type().String() == "time.Time" {
-			if r.(*time.Time).IsZero() {
-				r = &zeroTime
+
+		//通过db 标签和cols 做对比 取出struct中的值
+		realCol := ""
+		if dbCol != "" {
+			realCol = dbCol
+		} else {
+			realCol = t.Field(k).Name
+		}
+		if kCol := IsContain(realCol, cols); kCol != -1 {
+			r := v.Field(k).Addr().Interface()
+			if v.Field(k).Type().String() == "time.Time" {
+				if r.(*time.Time).IsZero() {
+					r = &zeroTime
+				}
 			}
+			ret[kCol] = r
 		}
-		ret = append(ret, r)
 	}
 	return ret, pk, isAi, pkName
 }
