@@ -1031,17 +1031,6 @@ func columnsByStructFields(s interface{}, cols []string) ([]interface{}, reflect
 			ret[kCol] = r
 		}
 	}
-	////通过cols获取struct中的值
-	//for _, value := range cols {
-	//	value = colName2FieldName(value)
-	//	r := v.FieldByName(value).Addr().Interface()
-	//	if v.FieldByName(value).Type().String() == "time.Time" {
-	//		if r.(*time.Time).IsZero() {
-	//			r = &zeroTime
-	//		}
-	//	}
-	//	ret = append(ret, r)
-	//}
 	return ret, pk, isAi, pkName
 }
 
