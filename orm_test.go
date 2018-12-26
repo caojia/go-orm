@@ -366,6 +366,12 @@ func TestOrmInsertOrUpdate(t *testing.T) {
 		if testObj4.TestID != 3 {
 			t.Fatal("test id should be 3")
 		}
+		testObj1.Description = "update with table"
+		err = orm.InsertOrUpdateWithTable(testObj1, "test_orm_a123", []string{"description"})
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t, testObj1.Description, "update with table")
 	})
 }
 func TestORMUpdateFieldsByPK(t *testing.T) {
