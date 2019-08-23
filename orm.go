@@ -1489,7 +1489,7 @@ func getFieldValue(param interface{}, fieldName string) (interface{}, error) {
 	}
 }
 
-func (o *ORM) DoTransaction(f func(*ORMTran) error) error {
+func (o *ORM) DoTransaction(f func(*ORMTran) error) (err error) {
 	trans, err := o.Begin()
 	if err != nil {
 		return err
@@ -1497,10 +1497,11 @@ func (o *ORM) DoTransaction(f func(*ORMTran) error) error {
 	defer func() {
 		perr := recover()
 		if err != nil || perr != nil {
-			trans.Rollback()
+			rerr := trans.Rollback()
 			if perr != nil {
-				panic(perr)
+				panic(fmt.Sprintf("%v, RollbackErr: %v", perr, rerr))
 			}
+			err = errors.New(fmt.Sprintf("%v, RollbackErr: %v", err, rerr))
 			return
 		} else {
 			err = trans.Commit()
@@ -1508,7 +1509,7 @@ func (o *ORM) DoTransaction(f func(*ORMTran) error) error {
 		}
 	}()
 	err = f(trans)
-	return err
+	return
 }
 
 func (o *ORM) DoTransactionMore(f func(*ORMTran) (interface{}, error)) (interface{}, error) {
