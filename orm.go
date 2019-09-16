@@ -1292,6 +1292,7 @@ type ORMer interface {
 	Query(string, ...interface{}) (*sql.Rows, error)
 	ExecWithParam(string, interface{}) (sql.Result, error)
 	ExecWithRowAffectCheck(int64, string, ...interface{}) error
+	DB() *sql.DB
 }
 
 type ORM struct {
@@ -1334,6 +1335,10 @@ func newORMWithDriver(ds string, driverName string) *ORM {
 	ret.db.SetMaxIdleConns(5)
 	ret.db.SetConnMaxLifetime(time.Minute * 10)
 	return ret
+}
+
+func (o *ORM) DB() *sql.DB {
+	return o.db
 }
 
 func (o *ORM) Close() error {
