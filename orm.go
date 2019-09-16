@@ -105,7 +105,7 @@ func reflectStructValue(v reflect.Value, t reflect.Type, cols []string, row *sql
 		}
 		fv := v.FieldByName(col)
 		if !fv.CanAddr() {
-			logrus.Infof("missing filed :%s", c)
+			//logrus.Infof("missing filed :%s", c)
 			var b interface{}
 			targets[k] = &b
 		} else {
@@ -1499,9 +1499,9 @@ func (o *ORM) DoTransaction(f func(*ORMTran) error) (err error) {
 		if err != nil || perr != nil {
 			rerr := trans.Rollback()
 			if perr != nil {
-				panic(fmt.Sprintf("%v, RollbackErr: %v", perr, rerr))
+				panic(fmt.Sprintf("panic: %v, RollbackErr: %v", perr, rerr))
 			}
-			err = errors.New(fmt.Sprintf("%v, RollbackErr: %v", err, rerr))
+			err = errors.New(fmt.Sprintf("transaction: %v, RollbackErr: %v", err, rerr))
 			return
 		} else {
 			err = trans.Commit()
