@@ -105,7 +105,7 @@ func reflectStructValue(v reflect.Value, t reflect.Type, cols []string, row *sql
 		}
 		fv := v.FieldByName(col)
 		if !fv.CanAddr() {
-			logrus.Infof("missing filed :%s", c)
+			//logrus.Infof("missing filed :%s", c)
 			var b interface{}
 			targets[k] = &b
 		} else {
@@ -1292,6 +1292,7 @@ type ORMer interface {
 	Query(string, ...interface{}) (*sql.Rows, error)
 	ExecWithParam(string, interface{}) (sql.Result, error)
 	ExecWithRowAffectCheck(int64, string, ...interface{}) error
+	DB() *sql.DB
 }
 
 type ORM struct {
@@ -1334,6 +1335,10 @@ func newORMWithDriver(ds string, driverName string) *ORM {
 	ret.db.SetMaxIdleConns(5)
 	ret.db.SetConnMaxLifetime(time.Minute * 10)
 	return ret
+}
+
+func (o *ORM) DB() *sql.DB {
+	return o.db
 }
 
 func (o *ORM) Close() error {
@@ -1489,7 +1494,7 @@ func getFieldValue(param interface{}, fieldName string) (interface{}, error) {
 	}
 }
 
-func (o *ORM) DoTransaction(f func(*ORMTran) error) error {
+func (o *ORM) DoTransaction(f func(*ORMTran) error) (err error) {
 	trans, err := o.Begin()
 	if err != nil {
 		return err
@@ -1497,10 +1502,11 @@ func (o *ORM) DoTransaction(f func(*ORMTran) error) error {
 	defer func() {
 		perr := recover()
 		if err != nil || perr != nil {
-			trans.Rollback()
+			rerr := trans.Rollback()
 			if perr != nil {
-				panic(perr)
+				panic(fmt.Sprintf("panic: %v, RollbackErr: %v", perr, rerr))
 			}
+			err = errors.New(fmt.Sprintf("transaction: %v, RollbackErr: %v", err, rerr))
 			return
 		} else {
 			err = trans.Commit()
@@ -1508,7 +1514,7 @@ func (o *ORM) DoTransaction(f func(*ORMTran) error) error {
 		}
 	}()
 	err = f(trans)
-	return err
+	return
 }
 
 func (o *ORM) DoTransactionMore(f func(*ORMTran) (interface{}, error)) (interface{}, error) {
