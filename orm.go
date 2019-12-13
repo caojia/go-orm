@@ -277,10 +277,13 @@ func query(c context.Context, tdx Tdx, queryStr string, args ...interface{}) (re
 
 	var exp []*Explain
 	if sqlLogger.ShowExplain(duration) {
-		exp, err = doExplain(tdx, queryStr, args...)
-		if err != nil {
-			return nil, err
-		}
+		go func() {
+			exp, err := doExplain(tdx, queryStr, args...)
+			if err != nil {
+				return
+			}
+			logPrint(c, sqlLogger, exp, duration, queryStr, args...)
+		}()
 	}
 	logPrint(c, sqlLogger, exp, duration, queryStr, args...)
 	return res, nil
